@@ -1,83 +1,66 @@
 # ADA World Monitor
 
-> Real-time global intelligence dashboard — earthquakes, space weather, crypto markets, world news, orbital tracking, launches and climate on one dark ops map.
-> **100% free APIs. Zero keys. Zero build. Zero backend.** Inspired by [koala73/worldmonitor](https://github.com/koala73/worldmonitor), rebuilt lite.
+> Real-time global intelligence dashboard **with a full AI brain** — ask anything, in any language, by voice or text. Live data (earthquakes, space weather, markets, news, ISS, launches, FX, weather) is injected into every AI answer.
+> **Free. Zero API keys. Zero backend. Zero build.**
 
 **Live:** https://saketkumar-18.github.io/ada-world-monitor/
 
-## The killer feature: voice
+## The AI brain
 
-Press **V** (or the voice button), then say:
+ADA answers **any question** — science, history, math, code, current events, live world data — in **any language you speak**.
 
-- *"ADA briefing"* — full spoken situation report compiled from all live feeds
-- *"ADA quakes"* — latest seismic events
-- *"ADA bitcoin"* — market snapshot
-- *"ADA weather Mumbai"* — live weather for any city
-- *"ADA where is the ISS"* — orbital telemetry
-- *"ADA space weather"* — geomagnetic storm status
-- *"ADA news"* — top headlines
-- *"ADA next launch"* — upcoming rocket launch
+| Layer | What it does |
+|---|---|
+| **Puter.js LLM** (GPT / Claude / Gemini, free, no API keys) | General knowledge, reasoning, any-language replies |
+| **Live-data injection** | Every question carries a snapshot of all 8 live feeds + FX, so live questions get exact current numbers |
+| **Wikipedia knowledge** (18 languages) | Entity facts pulled in real time as extra context |
+| **Language auto-detect** | Detects Hindi/English/Japanese/Chinese/Korean/Arabic/Russian/Thai (+ Devanagari, Hinglish) — recognition, reply, and voice all follow the language you spoke |
+| **Local fast-path** | Instant spoken answers for `briefing`, `quakes`, `bitcoin`, `iss`, `weather <city>`, `fx usd to inr` — no LLM round-trip |
+| **Model fallback** | If the primary model fails, ADA auto-switches to the fallback model |
 
-ADA **speaks back** via TTS. The **Morning Briefing** button compiles quakes + space weather + markets + climate + top story + next launch into one spoken report.
+### Voice loop
+Press **V** — ADA listens continuously, answers, and reopens the mic automatically. Speak Hindi, Hinglish, English — anything. Say "chup" or press **V** to stop.
 
-## Live data feeds (all free, all CORS-open, verified)
+> Note: the free AI (Puter.js) shows a **one-time sign-in popup** (email/Google — free account) on your first AI question. That's Puter's free-tier model: no keys for you, they meter per-user. Local commands, all feeds, map, and briefing work without it.
+
+## Live data feeds (all free, CORS-verified)
 
 | Feed | Source | Refresh |
 |---|---|---|
 | Earthquakes M2.5+ (24h) | USGS | 120 s |
 | ISS position + orbit trail | wheretheiss.at | 15 s |
-| Geomagnetic Kp index (30 readings) | NOAA SWPC | 120 s |
-| BTC / ETH / SOL prices + 24h change | CoinGecko | 120 s |
-| World news | BBC World (via rss2json) | 120 s |
-| Tech news | BBC Technology | 120 s |
-| Current events (OSINT) | Wikipedia Portal:Current events | 120 s |
-| Upcoming launches | Launch Library 2 | 120 s |
-| Climate + AQI (Delhi) | Open-Meteo | 120 s |
-| Hacker News top | Firebase HN API | 120 s |
+| Geomagnetic Kp index | NOAA SWPC | 120 s |
+| BTC / ETH / SOL | CoinGecko | 120 s |
+| FX rates (ECB) | Frankfurter | on demand |
+| World/Tech news | BBC (rss2json) | 120 s |
+| Current events | Wikipedia Portal | 120 s |
+| Weather + AQI any city | Open-Meteo | on demand |
+| Launches | Launch Library 2 | 120 s |
+| Knowledge (18 langs) | Wikipedia | on demand |
 
-## Features
+## Try asking
 
-- **Dark ops Leaflet map** — quakes sized/colored by magnitude, ISS live icon + dashed orbit trail, 8 strategic chokepoints (Hormuz, Suez, Malacca, Taiwan Strait…)
-- **Layer toggles** — QUAKES / ISS / CHOKEPOINTS on/off
-- **Space weather monitor** — 30-reading Kp bar chart with storm-level color coding
-- **Markets panel** — BTC/ETH/SOL with 24h change
-- **Climate panel** — Delhi temp/wind/humidity/AQI/PM2.5/sky
-- **Intelligence feed** — 3 tabs (WORLD / TECH / EVENTS), severity auto-tagged by keywords (war/attack → HIGH)
-- **Terminal** — full command interface, type `help`
-- **Voice** — Web Speech recognition + TTS, en-IN
-- **Boot sequence** — cinematic cold start
-- **Responsive** — single column under 1100px
+- *"भारत की राजधानी क्या है"* — answers in Hindi
+- *"what's the strongest earthquake right now"* — live USGS numbers
+- *"explain quantum tunneling"* — pure AI knowledge
+- *"dollar ka aaj rate kya hai"* — Hinglish → live FX
+- *"stock market summary"* — BBC headlines + AI synthesis
+- *"should I worry about the solar storm today"* — live Kp + AI reasoning
 
-## Run
+## Map
 
-```bash
-# any static server
-npx serve .
-# or just open index.html in a browser
-```
+Dark Leaflet ops map: quakes sized by magnitude, ISS live icon + dashed orbit trail, 8 strategic chokepoints (Hormuz, Suez, Malacca, Taiwan Strait…), layer toggles. Leaflet is self-hosted — no CDN dependency.
 
-## Test
+## Run / Test
 
 ```bash
-node tests/run.js   # 27 live-API tests + syntax checks
+npx serve .          # run
+node tests/run.js    # 36 live-API tests + syntax + language-detect checks
 ```
 
 ## Stack
 
-Single page, no build step: HTML + CSS + vanilla JS (2 modules) + Leaflet 1.9.4 (pinned, SRI). ~50KB total.
-
-## Attribution
-
-- Earthquake data: USGS earthquake hazards program
-- ISS: wheretheiss.at
-- Space weather: NOAA SWPC
-- Weather/AQI: Open-Meteo
-- Markets: CoinGecko
-- News: BBC RSS (via rss2json)
-- OSINT: Wikipedia Portal:Current events
-- Launches: Launch Library 2 (thespacedevs)
-- Tech: Hacker News
-- Tiles: OpenStreetMap contributors, CARTO
+Vanilla JS (4 modules) + Leaflet 1.9.4 (self-hosted) + Puter.js (AI). ~90KB. No build step, no backend, no keys.
 
 ## License
 
