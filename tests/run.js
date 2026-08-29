@@ -105,9 +105,11 @@ const t = (name, cond, extra) => {
 
   console.log("== index.html sanity ==");
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  t("leaflet css+js pinned 1.9.4 with SRI", html.includes("leaflet@1.9.4") && html.includes("integrity="));
+  t("loads local vendor leaflet (no CDN)", html.includes("vendor/leaflet.js") && !html.includes("unpkg.com/leaflet"));
   t("loads api.js + app.js", html.includes("js/api.js") && html.includes("js/app.js"));
   t("all panel ids referenced in JS exist in HTML", ["space-panel","market-panel","climate-panel","intel-panel","comms-panel","term"].every(id => html.includes('id="' + id)));
+  t("vendor leaflet.js present locally", fs.existsSync(path.join(__dirname, "..", "vendor", "leaflet.js")));
+  t("vendor leaflet.css present locally", fs.existsSync(path.join(__dirname, "..", "vendor", "leaflet.css")));
 
   console.log("\nRESULT: " + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);

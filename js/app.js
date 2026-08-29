@@ -56,7 +56,7 @@ setInterval(() => {
 }, 500);
 
 /* ================= map ================= */
-let map, layerQuakes, layerISS, layerChoke, issMarker, issPath;
+let map = null, layerQuakes = null, layerISS = null, layerChoke = null, issMarker = null, issPath = null;
 const CHOKEPOINTS = [
   { name: "Strait of Hormuz", lat: 26.57, lon: 56.25, note: "~20% of global oil" },
   { name: "Suez Canal", lat: 30.42, lon: 32.35, note: "12% of trade" },
@@ -68,31 +68,44 @@ const CHOKEPOINTS = [
   { name: "Danish Straits", lat: 55.7, lon: 11.0, note: "Baltic oil exit" },
 ];
 
+function mapFail(msg) {
+  log("err", "[MAP]", msg);
+  const box = $("#map");
+  if (box) box.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;letter-spacing:.14em;text-align:center;padding:0 30px">MAP OFFLINE —<br>all other feeds remain live</div>';
+}
+
 function initMap() {
-  map = L.map("map", { worldCopyJump: true, zoomControl: false, attributionControl: true }).setView([25, 40], 2);
-  L.control.zoom({ position: "bottomright" }).addTo(map);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/">CARTO</a>',
-    subdomains: "abcd", maxZoom: 19,
-  }).addTo(map);
+  if (typeof L === "undefined") { mapFail("Leaflet library not loaded"); return; }
+  try {
+    map = L.map("map", { worldCopyJump: true, zoomControl: false, attributionControl: true }).setView([25, 40], 2);
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/">CARTO</a>',
+      subdomains: "abcd", maxZoom: 19,
+    }).addTo(map);
 
-  layerChoke = L.layerGroup();
-  CHOKEPOINTS.forEach((c) => {
-    const m = L.marker([c.lat, c.lon], {
-      icon: L.divIcon({ className: "choke-icon", iconSize: [8, 8], html: "" }),
-    }).bindPopup(`<b style="color:#ff4d5e">${c.name}</b><br><span style="color:#54687c">${c.note}</span>`);
-    layerChoke.addLayer(m);
-  });
+    layerChoke = L.layerGroup();
+    CHOKEPOINTS.forEach((c) => {
+      const m = L.marker([c.lat, c.lon], {
+        icon: L.divIcon({ className: "choke-icon", iconSize: [8, 8], html: "" }),
+      }).bindPopup(`<b style="color:#ff4d5e">${c.name}</b><br><span style="color:#54687c">${c.note}</span>`);
+      layerChoke.addLayer(m);
+    });
 
-  layerQuakes = L.layerGroup();
-  layerISS = L.layerGroup();
-  issPath = L.polyline([], { className: "iss-path", color: "#35e0ff", weight: 1.5, dashArray: "4 3", opacity: 0.5 });
-  layerOn.choke && layerChoke.addTo(map);
-  layerOn.quakes && layerQuakes.addTo(map);
-  layerOn.iss && layerISS.addTo(map);
+    layerQuakes = L.layerGroup();
+    layerISS = L.layerGroup();
+    issPath = L.polyline([], { className: "iss-path", color: "#35e0ff", weight: 1.5, dashArray: "4 3", opacity: 0.5 });
+    layerOn.choke && layerChoke.addTo(map);
+    layerOn.quakes && layerQuakes.addTo(map);
+    layerOn.iss && layerISS.addTo(map);
+  } catch (e) {
+    map = null;
+    mapFail("init failed: " + e.message);
+  }
 }
 
 function renderQuakes() {
+  if (!map || !layerQuakes) return;
   layerQuakes.clearLayers();
   S.quakes.slice(0, 120).forEach((q) => {
     const r = Math.max(4, Math.min(18, (q.mag || 0) * 3.2));
@@ -110,6 +123,10 @@ function renderQuakes() {
 }
 
 function renderISS() {
+  if (!map || !layerISS) {
+    if (S.issNow) $("#iss-hud").innerHTML = `ISS: <b>${S.issNow.lat.toFixed(1)}°, ${S.issNow.lon.toFixed(1)}°</b> · ${Math.round(S.issNow.alt)} km`;
+    return;
+  }
   layerISS.clearLayers();
   if (S.issNow) {
     const icon = L.divIcon({ className: "iss-icon", iconSize: [10, 10], html: "" });
@@ -222,6 +239,7 @@ $("#intel-tabs").addEventListener("click", (e) => {
 /* ================= map toggles ================= */
 function bindToggles() {
   const apply = () => {
+    if (!map) return;
     S.layerOn.quakes ? layerQuakes.addTo(map) : map.removeLayer(layerQuakes);
     S.layerOn.iss ? layerISS.addTo(map) : map.removeLayer(layerISS);
     S.layerOn.choke ? layerChoke.addTo(map) : map.removeLayer(layerChoke);
@@ -562,9 +580,11 @@ document.addEventListener("keydown", prime);
 initMap();
 bindToggles();
 sizeWave();
+window.addEventListener("error", (e) => { try { log("err", "[ERR]", String(e.message || e.type)); } catch (_) { } });
 runBoot(() => {
   log("ok", "[SYS]", "ADA World Monitor online · 8 feeds armed");
   log("sys", "[SYS]", "HELP for commands · B for briefing · V for voice");
+  if (!map) log("warn", "[SYS]", "running in degraded mode — feeds live, map offline");
   refreshAll();
   setInterval(refreshAll, 120000);
   setInterval(refreshISS, 15000);
