@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="ADA World Monitor — real-time global intelligence dashboard. Earthquakes, space weather, crypto markets, world news, launches and climate on one dark map. Free, no keys, single build.">
+<meta name="theme-color" content="#050810">
+<title>ADA — World Monitor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='10' fill='none' stroke='%2335e0ff' stroke-width='3'/><circle cx='16' cy='16' r='3' fill='%2335e0ff'/></svg>">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCfSh0e/G5Q0iLDWOMXk6irIc=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+<div id="boot"><div id="boot-inner">
+  <div class="b-title">A D A · WORLD MONITOR</div>
+  <div id="boot-lines"></div>
+</div></div>
+
+<header id="topbar">
+  <div id="logo">
+    <svg viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="13" stroke="#35e0ff" stroke-width="1" opacity=".4"/>
+      <circle cx="16" cy="16" r="9" stroke="#35e0ff" stroke-width="1.6"/>
+      <circle cx="16" cy="16" r="2.6" fill="#35e0ff"/>
+      <path d="M16 3v5M16 24v5M3 16h5M24 16h5" stroke="#35e0ff" stroke-width="1" opacity=".6"/>
+    </svg>
+    <div>
+      <div class="name">ADA <span class="name-2">WORLD MONITOR</span></div>
+      <div class="sub">REAL-TIME GLOBAL INTELLIGENCE · FREE · NO KEYS</div>
+    </div>
+  </div>
+  <div id="top-status">
+    <span class="chip"><span class="led ok"></span><span id="live-count">0 FEEDS LIVE</span></span>
+    <span class="chip"><span class="led ok"></span>AUTO-REFRESH</span>
+    <span>UPTIME <b id="uptime">00:00:00</b></span>
+  </div>
+  <div id="clockbox">
+    <div id="clock">--:--:--</div>
+    <div id="dateline">SYNCING…</div>
+  </div>
+</header>
+
+<div id="app">
+
+  <!-- LEFT: monitors -->
+  <aside id="left">
+    <section class="panel" id="space-panel">
+      <div class="p-head"><span class="dot"></span>SPACE WEATHER</div>
+      <div class="p-body">
+        <div id="kp-chart"></div>
+        <div id="kp-meta"></div>
+      </div>
+    </section>
+    <section class="panel" id="market-panel">
+      <div class="p-head"><span class="dot"></span>MARKETS</div>
+      <div class="p-body"><div id="market-rows"></div></div>
+    </section>
+    <section class="panel" id="climate-panel">
+      <div class="p-head"><span class="dot"></span>CLIMATE · DELHI</div>
+      <div class="p-body">
+        <div id="climate-grid"></div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- CENTER: map -->
+  <main id="center" class="panel">
+    <div class="p-head"><span class="dot"></span>GLOBAL OPERATIONS MAP
+      <span class="spacer"></span>
+      <span class="map-toggle" id="toggle-quakes" title="toggle earthquakes">QUAKES</span>
+      <span class="map-toggle" id="toggle-iss" title="toggle ISS">ISS</span>
+      <span class="map-toggle" id="toggle-choke" title="toggle chokepoints">CHOKEPOINTS</span>
+    </div>
+    <div class="p-body" style="padding:0">
+      <div id="map"></div>
+      <div id="map-hud">
+        <div class="tl">M2.5+ · 24H<br><b id="quake-count">0</b> EVENTS</div>
+        <div class="bl" id="iss-hud">ISS: TRACKING…</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT: intel -->
+  <aside id="right">
+    <section class="panel" id="intel-panel">
+      <div class="p-head"><span class="dot amber"></span>INTELLIGENCE FEED
+        <div class="tabs" id="intel-tabs">
+          <button class="tab active" data-tab="world">WORLD</button>
+          <button class="tab" data-tab="tech">TECH</button>
+          <button class="tab" data-tab="wiki">EVENTS</button>
+        </div>
+      </div>
+      <div class="p-body">
+        <div id="intel-list" class="feed-list"></div>
+      </div>
+    </section>
+    <section class="panel" id="comms-panel">
+      <div class="p-head"><span class="dot"></span>COMMS / ADA VOICE</div>
+      <div class="p-body">
+        <canvas id="wave"></canvas>
+        <div class="comms-row">CHANNEL: <b id="comms-mode">STANDBY</b><span style="margin-left:auto" id="tts-state">TTS ON</span></div>
+        <button id="voice-btn">▸ Activate Voice Link</button>
+        <button id="brief-btn" class="secondary">▶ Morning Briefing</button>
+      </div>
+    </section>
+  </aside>
+
+  <!-- BOTTOM: terminal -->
+  <section id="term" class="panel">
+    <div class="p-head"><span class="dot"></span>SYSTEM TERMINAL
+      <span class="spacer"></span>
+      <span class="kbd-hint"><b>V</b> voice · <b>B</b> briefing · <b>S</b> scan · <b>R</b> refresh · <b>HELP</b> commands</span>
+    </div>
+    <div class="p-body">
+      <div id="term-out"></div>
+      <div id="cmdrow">
+        <span class="ps1">ada@world:~$</span>
+        <input id="cmd" type="text" placeholder="try: briefing, quakes, news, bitcoin, launches, weather delhi, help" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
