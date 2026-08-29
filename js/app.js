@@ -352,7 +352,7 @@ async function refreshAll() {
 
 /* ================= voice ================= */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recog = null, listening = false, ttsOn = true, speaking = false;
+let recog = null, listening = false, ttsOn = true, speaking = false, voiceLoop = false;
 
 const waveCv = $("#wave"), wctx = waveCv.getContext("2d");
 function sizeWave() {
@@ -379,14 +379,22 @@ function drawWave(now) {
 function pickVoice() {
   const vs = speechSynthesis.getVoices();
   if (!vs.length) return null;
-  return vs.find((v) => /en[-_](IN|GB)/i.test(v.lang) && /female|zira|heera|neerja|sonia|libby/i.test(v.name))
-    || vs.find((v) => /^en/i.test(v.lang))
-    || vs[0];
+  const want = (convo.lastLang || "en-IN").split("-")[0];
+  // prefer exact lang match, then language family, then english, then any
+  const byLang = (l) => vs.filter((v) => v.lang.replace("_", "-").toLowerCase().startsWith(l.toLowerCase()));
+  const female = (arr) => arr.find((v) => /female|zira|heera|neerja|sonia|libby|swara|google/i.test(v.name));
+  const pool = byLang(convo.lastLang || "en-IN");
+  if (pool.length) return female(pool) || pool[0];
+  const fam = byLang(want);
+  if (fam.length) return female(fam) || fam[0];
+  const en = byLang("en");
+  return female(en) || en[0] || vs[0];
 }
 function speak(text) {
   if (!ttsOn || !("speechSynthesis" in window)) return;
   const u = new SpeechSynthesisUtterance(text);
   u.rate = 1.04; u.pitch = 1;
+  u.lang = convo.lastLang || "en-IN";
   const v = pickVoice();
   if (v) u.voice = v;
   u.onstart = () => { speaking = true; $("#comms-mode").textContent = "RESPONDING"; };
@@ -440,95 +448,53 @@ async function morningBriefing(voice = true) {
   return text;
 }
 
-/* ---- commands ---- */
+/* ---- commands: routed through brain.js (local fast-path + AI) ---- */
 async function handleCommand(raw) {
-  const q = raw.trim().toLowerCase().replace(/^(hey |ok |okay )?(ada|world)[, ]*/, "");
-  if (!q) return;
-  log("user", "[OP]", raw.trim());
-
-  if (/^(help|commands)/.test(q)) {
-    respond("Commands: briefing, quakes, news, bitcoin, launches, weather <city>, iss, space weather, refresh. Say ADA first for voice.");
-  } else if (/brief|morning|situation|summary/.test(q)) {
-    morningBriefing(true);
-  } else if (/quake|seismic|earthquake/.test(q)) {
-    if (S.quakes.length) {
-      const top = S.quakes.slice(0, 3);
-      respond(`Top seismic events: ` + top.map((t) => `Magnitude ${t.mag}, ${t.place}, ${ago(t.time)}`).join(". ") + ".");
-    } else respond("Seismic feed still syncing.", false);
-  } else if (/bitcoin|btc|crypto|market|ethereum|solana/.test(q)) {
-    const btc = S.crypto.find((c) => c.id === "bitcoin");
-    const eth = S.crypto.find((c) => c.id === "ethereum");
-    if (btc) respond(`Bitcoin $${Math.round(btc.usd).toLocaleString("en-IN")}${btc.chg != null ? ", " + (btc.chg >= 0 ? "up" : "down") + " " + Math.abs(btc.chg).toFixed(1) + " percent" : ""}. Ethereum $${eth ? Math.round(eth.usd).toLocaleString("en-IN") : "--"}.`);
-    else respond("Market feed syncing.", false);
-  } else if (/launch|rocket|spacex|launches/.test(q)) {
-    if (S.launches.length) {
-      const l = S.launches[0];
-      respond(`Next launch: ${l.name}, by ${l.provider || "unknown provider"}. Status: ${l.status}.`);
-    } else respond("Launch feed syncing.", false);
-  } else if (/weather|temperature|climate/.test(q)) {
-    const m = q.match(/(?:weather|in)\s+([a-z\s]+)$/);
-    const city = m ? m[1].trim() : null;
-    if (city) {
-      try {
-        const g = await API.geo(city);
-        if (!g) { respond(`I could not locate ${city}.`, false); return; }
-        const w = await API.weather(g.lat, g.lon);
-        respond(`${g.name}: ${w.temp.toFixed(0)} degrees, ${WMO[w.code] || "current conditions"}, wind ${Math.round(w.wind)} kilometers per hour.`);
-      } catch (e) { respond("Weather link failed.", false); }
-    } else if (S.climate) {
-      respond(`Delhi: ${S.climate.temp.toFixed(0)} degrees, ${WMO[S.climate.code] || "current conditions"}${S.climate.aqi != null ? ", AQI " + S.climate.aqi : ""}.`);
-    } else respond("Climate feed syncing.", false);
-  } else if (/\biss\b|station/.test(q)) {
-    if (S.issNow) respond(`ISS is at ${S.issNow.lat.toFixed(1)} north, ${S.issNow.lon.toFixed(1)} ${S.issNow.lon >= 0 ? "east" : "west"}, altitude ${Math.round(S.issNow.alt)} kilometers, speed ${Math.round(S.issNow.vel)} kilometers per hour.`);
-    else respond("ISS link syncing.", false);
-  } else if (/space weather|kp|solar|geomag|storm/.test(q)) {
-    if (S.kp.length) {
-      const last = S.kp[S.kp.length - 1];
-      respond(`Geomagnetic Kp at ${last.kp.toFixed(1)} — ${kpLabel(last.kp).toLowerCase()} conditions.`);
-    } else respond("Space weather syncing.", false);
-  } else if (/news|headline|world/.test(q)) {
-    if (S.news.world.length) {
-      respond("Top stories: " + S.news.world.slice(0, 3).map((n) => n.title).join(". ") + ".");
-    } else respond("News feed syncing.", false);
-  } else if (/refresh|update|sync/.test(q)) {
-    respond("Refreshing all feeds.", false);
-    refreshAll();
-  } else if (/hello|hi\b|hey/.test(q)) {
-    respond("Hello Saket. All monitoring feeds operational.");
-  } else if (/who are you|your name/.test(q)) {
-    respond("I am ADA World Monitor — your global intelligence co-pilot, named for Ada Lovelace.");
-  } else if (/thank/.test(q)) {
-    respond("Always a pleasure.");
-  } else if (/mute|quiet|silence/.test(q)) {
-    ttsOn = false; $("#tts-state").textContent = "TTS OFF"; speechSynthesis.cancel(); log("sys", "[SYS]", "voice muted");
-  } else if (/speak|unmute|voice on/.test(q)) {
-    ttsOn = true; $("#tts-state").textContent = "TTS ON"; respond("Voice enabled.");
-  } else {
-    respond("Command not recognized. Say help for options.");
-  }
+  const text = raw.trim();
+  if (!text) return;
+  log("user", "[OP]", text);
+  const lang = detectLang(text);
+  convo.lastLang = lang;
+  const fast = localCommand(text);
+  if (fast) { const r = fast(); if (r && r.then) await r; return; }
+  await aiAnswer(text, lang);
 }
 
 function toggleVoice() {
   if (!SR) { log("warn", "[SYS]", "speech recognition not supported here — text terminal works"); return; }
   if (listening) { try { recog.stop(); } catch (_) { } return; }
   recog = new SR();
-  recog.lang = "en-IN"; recog.interimResults = false; recog.maxAlternatives = 1;
-  recog.onstart = () => { listening = true; $("#voice-btn").classList.add("listening"); $("#voice-btn").textContent = "■ Listening…"; $("#comms-mode").textContent = "LISTENING"; log("sys", "[SYS]", "voice link open"); };
-  recog.onresult = (e) => handleCommand(e.results[0][0].transcript);
+  // ANY language: use last detected, default en-IN; browsers auto-handle code switching
+  recog.lang = convo.lastLang || "en-IN";
+  recog.interimResults = false; recog.maxAlternatives = 1;
+  recog.continuous = false;
+  recog.onstart = () => { listening = true; $("#voice-btn").classList.add("listening"); $("#voice-btn").textContent = "■ Listening…"; $("#comms-mode").textContent = "LISTENING"; log("sys", "[SYS]", "voice link open (" + recog.lang + ")"); };
+  recog.onresult = async (e) => {
+    const t = e.results[0][0].transcript;
+    // remember detected language for next round + set recognition lang to it
+    const d = detectLang(t);
+    convo.lastLang = d;
+    await handleCommand(t);
+  };
   recog.onerror = (e) => { if (e.error !== "no-speech") log("warn", "[SYS]", "voice error: " + e.error); };
-  recog.onend = () => { listening = false; $("#voice-btn").classList.remove("listening"); $("#voice-btn").textContent = "▸ Activate Voice Link"; if (!speaking) $("#comms-mode").textContent = "STANDBY"; };
+  recog.onend = () => {
+    listening = false; $("#voice-btn").classList.remove("listening"); $("#voice-btn").textContent = "▸ Activate Voice Link";
+    if (!speaking && !convo.busy) $("#comms-mode").textContent = "STANDBY";
+    // continuous conversation: re-open after ADA finishes speaking
+    if (voiceLoop && !convo.busy) setTimeout(() => { if (voiceLoop && !listening && !speaking && !convo.busy) toggleVoice(); }, 400);
+  };
   try { recog.start(); } catch (e) { }
 }
 
-$("#voice-btn").addEventListener("click", toggleVoice);
+$("#voice-btn").addEventListener("click", () => { voiceLoop = !voiceLoop; if (voiceLoop) log("sys", "[SYS]", "continuous voice loop ON (V to stop)"); toggleVoice(); });
 $("#brief-btn").addEventListener("click", () => morningBriefing(true));
 $("#cmd").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && e.target.value.trim()) { handleCommand(e.target.value); e.target.value = ""; }
+  if (e.key === "Enter" && e.target.value.trim()) { const v = e.target.value; e.target.value = ""; handleCommand(v); }
 });
 document.addEventListener("keydown", (e) => {
   if (e.target === $("#cmd")) return;
   const k = e.key.toLowerCase();
-  if (k === "v") toggleVoice();
+  if (k === "v") { voiceLoop = !voiceLoop; if (voiceLoop) log("sys", "[SYS]", "continuous voice loop ON (V to stop)"); toggleVoice(); }
   else if (k === "b") morningBriefing(true);
   else if (k === "s") { log("sys", "[SYS]", "manual scan"); refreshQuakes(); }
   else if (k === "r") refreshAll();

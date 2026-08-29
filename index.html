@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="vendor/leaflet.css">
 <script src="vendor/leaflet.js"></script>
 <link rel="stylesheet" href="css/main.css">
+<script src="https://js.puter.com/v2/"></script>
 </head>
 <body>
 
@@ -101,7 +102,7 @@
       <div class="p-body">
         <canvas id="wave"></canvas>
         <div class="comms-row">CHANNEL: <b id="comms-mode">STANDBY</b><span style="margin-left:auto" id="tts-state">TTS ON</span></div>
-        <button id="voice-btn">▸ Activate Voice Link</button>
+        <button id="voice-btn">▸ Voice Loop (any language)</button>
         <button id="brief-btn" class="secondary">▶ Morning Briefing</button>
       </div>
     </section>
@@ -111,7 +112,7 @@
   <section id="term" class="panel">
     <div class="p-head"><span class="dot"></span>SYSTEM TERMINAL
       <span class="spacer"></span>
-      <span class="kbd-hint"><b>V</b> voice · <b>B</b> briefing · <b>S</b> scan · <b>R</b> refresh · <b>HELP</b> commands</span>
+      <span class="kbd-hint"><b>V</b> voice loop · <b>B</b> briefing · <b>S</b> scan · <b>R</b> refresh · ask anything in any language</span>
     </div>
     <div class="p-body">
       <div id="term-out"></div>
@@ -125,6 +126,8 @@
 </div>
 
 <script src="js/api.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/brain.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

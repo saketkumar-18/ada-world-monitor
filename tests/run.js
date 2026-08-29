@@ -27,7 +27,7 @@ const t = (name, cond, extra) => {
 
 (async () => {
   console.log("== syntax ==");
-  for (const f of ["js/app.js"]) {
+  for (const f of ["js/app.js", "js/ai.js", "js/brain.js"]) {
     const code = fs.readFileSync(path.join(__dirname, "..", f), "utf8");
     try { new Function(code); t(f + " parses", true); }
     catch (e) { t(f + " parses", false, e.message); }
@@ -102,6 +102,25 @@ const t = (name, cond, extra) => {
     t("top items", h.length === 5);
     t("have score+title", h.every(x => x.title && x.score > 0));
   } catch (e) { t("HN live fetch", false, e.message); }
+
+  console.log("== Frankfurter FX ==");
+  try {
+    const r = await fetch("https://api.frankfurter.dev/v1/latest?base=USD&symbols=INR,EUR").then((x) => x.json());
+    t("fx USD→INR exists", r.rates && r.rates.INR > 50 && r.rates.INR < 120, JSON.stringify(r.rates));
+    t("fx date present", typeof r.date === "string");
+  } catch (e) { t("Frankfurter live fetch", false, e.message); }
+
+  console.log("== Wikipedia knowledge (multi-lang) ==");
+  try {
+    const surl = "https://hi.wikipedia.org/w/api.php?action=query&list=search&srsearch=" + encodeURIComponent("जापान") + "&srlimit=1&format=json&origin=*";
+    const sr = await fetch(surl).then((x) => x.json());
+    t("hindi wiki search works", sr.query && sr.query.search && sr.query.search.length > 0);
+    const title = sr.query.search[0].title;
+    const m = await fetch("https://hi.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(title)).then((x) => x.json());
+    t("hindi wiki summary extract", typeof m.extract === "string" && m.extract.length > 30, "len=" + (m.extract || "").length);
+    const en = await fetch("https://en.wikipedia.org/api/rest_v1/page/summary/Japan").then((x) => x.json());
+    t("english wiki summary extract", typeof en.extract === "string" && en.extract.length > 30);
+  } catch (e) { t("Wikipedia live fetch", false, e.message); }
 
   console.log("== index.html sanity ==");
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
