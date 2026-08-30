@@ -233,6 +233,21 @@ const GODSEYE = (() => {
     if (globe) globe.pointOfView({ lat, lng, altitude: alt }, 1200);
   }
 
+  function zoom(dAlt) {
+    if (!globe) return;
+    const pov = globe.pointOfView();
+    globe.pointOfView({ lat: pov.lat, lng: pov.lng, altitude: Math.max(0.25, Math.min(5, pov.altitude + dAlt)) }, 300);
+  }
+
+  let rotAngle = 0;
+  function rotate() {
+    if (!globe || !autoRotateOK) return;
+    const pov = globe.pointOfView();
+    rotAngle = (pov.lng + 0.25) % 360;
+    globe.pointOfView({ lat: pov.lat, lng: rotAngle, altitude: pov.altitude }, 0);
+  }
+  let autoRotateOK = false; // disabled after user interacts
+
   function setLayer(key, on) {
     layers[key] = on;
     renderFlights(); renderSats(); renderQuakes(); renderISS();
@@ -250,7 +265,7 @@ const GODSEYE = (() => {
   }
 
   return {
-    init, ready: () => ready, layers, setLayer, flyTo, counts,
+    init, ready: () => ready, layers, setLayer, flyTo, zoom, rotate, setAutoRotateOK: (v) => { autoRotateOK = v; }, counts,
     fetchFlights, fetchMilFlights, fetchTLEs, propagateSats, fetchISS,
     state, renderFlights, renderSats, renderQuakes, renderISS, CHOKE,
   };

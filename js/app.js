@@ -264,6 +264,8 @@ async function sendChat() {
   inp.value = "";
   chatMsg(v, "user");
   const th = chatThinking();
+  // inside user-gesture: if AI needs sign-in, popup opens correctly
+  try { if (AI.ready && !AI.signedIn()) await AI.ensureSignIn(); } catch (e) { }
   try { await handleCommand(v); }
   catch (e) { chatMsg("arrey, kuch technical gadbad ho gayi — phir se try karo", "ada"); }
   th.remove();
@@ -283,6 +285,7 @@ function toggleVoice() {
     convo.lastLang = detectLang(t);
     chatMsg(t, "user");
     const th = chatThinking();
+    try { if (AI.ready && !AI.signedIn()) await AI.ensureSignIn(); } catch (e2) { }
     try { await handleCommand(t); } catch (err) { chatMsg("technical gadbad — phir se bolo", "ada"); }
     th.remove();
   };
@@ -327,6 +330,40 @@ $("#btn-2d").addEventListener("click", () => {
   $("#hud-mode").textContent = useGlobe ? "3D GLOBE" : "2D MAP";
   if (!useGlobe && !map) initMap();
   if (useGlobe) syncGlobeData(); else { renderMapQuakes(); renderMapISS(); }
+});
+
+/* ================= zoom + rotate controls ================= */
+let autoRotate = true, rotTimer = null;
+function setAutoRotate(on) {
+  autoRotate = on;
+  $("#zoom-rot").style.borderColor = on ? "var(--cyan)" : "";
+  $("#zoom-rot").style.color = on ? "var(--cyan)" : "";
+  if (rotTimer) { clearInterval(rotTimer); rotTimer = null; }
+  if (on && useGlobe && GODSEYE.ready()) {
+    GODSEYE.setAutoRotateOK(true);
+    rotTimer = setInterval(() => {
+      try { GODSEYE.rotate(); } catch (e) { }
+    }, 60);
+  } else if (!on) {
+    GODSEYE.setAutoRotateOK(false);
+  }
+}
+$("#zoom-in").addEventListener("click", () => {
+  if (useGlobe && GODSEYE.ready()) GODSEYE.zoom(-0.4);
+  else if (map) map.zoomIn();
+});
+$("#zoom-out").addEventListener("click", () => {
+  if (useGlobe && GODSEYE.ready()) GODSEYE.zoom(0.4);
+  else if (map) map.zoomOut();
+});
+$("#zoom-rot").addEventListener("click", () => setAutoRotate(!autoRotate));
+
+/* ================= quick chips ================= */
+document.querySelectorAll("#chat-chips .qchip").forEach(c => {
+  c.addEventListener("click", () => {
+    $("#chat-in").value = c.textContent;
+    sendChat();
+  });
 });
 
 /* ================= boot ================= */
@@ -390,9 +427,14 @@ setInterval(pollBridge, 30000);
 runBoot(() => {
   refreshAll();
   refreshSats();
+  GODSEYE.setAutoRotateOK(true);
+  setAutoRotate(true);
+  // stop auto-rotate when user touches the globe
+  const gEl = $("#globe");
+  if (gEl) ["mousedown", "wheel", "touchstart"].forEach(ev => gEl.addEventListener(ev, () => { GODSEYE.setAutoRotateOK(false); }, { once: true, passive: true }));
   setInterval(refreshAll, 120000);
   setInterval(refreshISS, 15000);
-  setInterval(() => { if (useGlobe) { GODSEYE.propagateSats(); GODSEYE.renderSats(); } }, 30000);
+  setInterval(() => { if (useGlobe) { GODSEYE.propagateSats(); GODSEYE.renderSats(); updateCounts(); } }, 30000);
   setInterval(() => { GODSEYE.fetchFlights(S.scanCenter.lat, S.scanCenter.lon).then(syncGlobeData); }, 60000);
 });
 requestAnimationFrame(frame);

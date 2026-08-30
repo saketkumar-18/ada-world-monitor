@@ -1,33 +1,64 @@
-/* ADA v2 — AI brain layer.
- * LLM: Puter.js (free, no API keys, hundreds of models).
- * Knowledge tools: Wikipedia (all languages), Frankfurter FX, USGS,
- * Open-Meteo, restcountries-free fallback, geo, launches, Kp, crypto, news.
- * Language: auto-detect — answers in the language the user speaks.
+/* ADA — AI brain layer. MULTI-PROVIDER, zero signup.
+ * 1) Pollinations (anonymous, needs referrer) — primary
+ * 2) Puter.js (free account, richer models) — fallback
+ * 3) Error message explains exactly what to do.
  */
 "use strict";
 
 const AI = (() => {
 
   const AVAL = {
-    LM_MODELS: [
-      "openai/gpt-5.4-nano",
-      "anthropic/claude-sonnet-5",
-      "google/gemini-3.1-pro-preview",
-    ],
-    LM_DEFAULT: "openai/gpt-5.4-nano",
-    LM_FALLBACK: "anthropic/claude-sonnet-5",
+    LM_MODELS: ["openai", "mistral"],
+    LM_DEFAULT: "openai",
+    LM_FALLBACK: "mistral",
   };
 
+  /* ---------- provider 1: Pollinations (anonymous) ---------- */
+  async function chatPollinations(messages, opts) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 45000);
+    try {
+      const r = await fetch("https://text.pollinations.ai/openai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: c.signal,
+        body: JSON.stringify({
+          model: opts.model || AVAL.LM_DEFAULT,
+          messages,
+          referrer: "ada-gods-eye",
+          max_tokens: 800,
+        }),
+      });
+      if (!r.ok) throw new Error("pollinations HTTP " + r.status);
+      const d = await r.json();
+      const m = d.choices && d.choices[0] && d.choices[0].message;
+      if (!m || !m.content) throw new Error("pollinations empty");
+      return m.content;
+    } finally { clearTimeout(t); }
+  }
+
+  /* ---------- provider 2: Puter.js (PRIMARY — permanent free AI) ---------- */
   function ready() {
     return typeof puter !== "undefined" && puter.ai && puter.ai.chat;
   }
-
-  /* ---- raw chat ---- */
-  async function chat(messages, opts = {}) {
-    if (!ready()) throw new Error("AI core not loaded (js.puter.com)");
-    const model = opts.model || AVAL.LM_DEFAULT;
-    const resp = await puter.ai.chat(messages, { model });
-    // response may be string, or {message:{content:[{text}]}} or {message:{content:".."}}
+  function signedIn() {
+    try { return typeof puter !== "undefined" && puter.auth && typeof puter.auth.isSignedIn === "function" && puter.auth.isSignedIn(); }
+    catch (e) { return false; }
+  }
+  /* MUST be called inside a user-gesture (click/Enter) — otherwise popup is blocked */
+  async function ensureSignIn() {
+    if (!ready()) throw new Error("puter not loaded");
+    if (signedIn()) return true;
+    if (puter.auth && typeof puter.auth.signIn === "function") {
+      try { await puter.auth.signIn(); } catch (e) {
+        throw new Error("sign-in popup blocked — browser ke address bar me popup-blocker icon allow karo, phir dobara bhejo");
+      }
+    }
+    return signedIn();
+  }
+  async function chatPuter(messages, opts = {}) {
+    if (!ready()) throw new Error("puter not loaded");
+    const resp = await puter.ai.chat(messages, { model: opts.model || "openai/gpt-5.4-nano" });
     if (typeof resp === "string") return resp;
     if (resp && resp.message) {
       const c = resp.message.content;
@@ -35,59 +66,38 @@ const AI = (() => {
       if (Array.isArray(c)) return c.map((p) => (typeof p === "string" ? p : p.text || "")).join("");
     }
     if (resp && typeof resp.text === "string") return resp.text;
-    throw new Error("AI returned unknown shape");
+    throw new Error("puter unknown shape");
   }
 
-  /* ---- system prompt: ADA persona ---- */
-  function sysPrompt(langHint) {
-    return `You are ADA (Autonomous Digital Assistant), the AI inside the ADA World Monitor command center, serving operator Saket.
-Rules:
-- Detect the user's language automatically and ALWAYS reply in that same language (Hindi → Hindi, English → English, etc). If the user mixes languages, reply in the dominant one.
-- You have LIVE TOOLS: the system message before each user turn includes a block like [LIVE DATA] key: value lines. Use them for any question about current quakes, ISS, Kp, crypto, weather, AQI, FX, news, launches, HN. Cite the numbers exactly.
-- For general knowledge questions (history, science, math, code), answer accurately and concisely from your own knowledge.
-- If live data for a topic is missing, say so briefly, then answer with general knowledge.
-- Style: mission-control operator tone, concise, no fluff, no emoji. 1-4 sentences unless asked for more.
-${langHint ? "- The operator's speech locale is " + langHint + " — likely reply language: " + langHint.split("-")[0] + "." : ""}`;
+  /* ---------- unified chat: puter first (reliable), pollinations fallback ---------- */
+  async function chat(messages, opts = {}) {
+    let err1;
+    try { return await chatPuter(messages, opts); }
+    catch (e) { err1 = e; }
+    let err2;
+    try { return await chatPollinations(messages, opts); }
+    catch (e) { err2 = e; }
+    throw new Error("AI down (puter: " + (err1.message || "") + " / pollinations: " + (err2.message || "") + ")");
   }
 
-  /* ---- knowledge tools (all free, CORS-open) ---- */
-
-  // Wikipedia: search + summary in user's language wiki
+  /* ---------- knowledge tools ---------- */
   async function wiki(query, lang = "en") {
     const lg = (lang || "en").split("-")[0];
-    const host = ["en", "hi", "es", "fr", "de", "pt", "ru", "ar", "zh", "ja", "ko", "it", "tr", "id", "bn", "ta", "te", "mr", "gu"].includes(lg) ? lg : "en";
+    const host = ["en", "hi", "es", "fr", "de", "pt", "ru", "ar", "zh", "ja", "ko", "it", "tr", "id", "bn", "ta", "te", "mr"].includes(lg) ? lg : "en";
     const surl = `https://${host}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=1&format=json&origin=*`;
     const sr = await fetch(surl).then((r) => r.json());
     if (!sr.query || !sr.query.search || !sr.query.search.length) return null;
     const title = sr.query.search[0].title;
     const murl = `https://${host}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
     const m = await fetch(murl).then((r) => r.json());
-    return { title, extract: m.extract, url: m.content_urls ? m.content_urls.desktop.page : "https://" + host + ".wikipedia.org/wiki/" + encodeURIComponent(title), lang: host };
+    return { title, extract: m.extract, url: m.content_urls ? m.content_urls.desktop.page : null, lang: host };
   }
 
-  // Frankfurter FX: latest + time series
-  async function fx(base = "USD", symbols = "INR,EUR,GBP,JPY,CNY") {
+  async function fx(base = "USD", symbols = "INR,EUR,GBP,JPY") {
     const d = await fetch(`https://api.frankfurter.dev/v1/latest?base=${base}&symbols=${symbols}`).then((r) => r.json());
     return { base: d.base, date: d.date, rates: d.rates };
   }
 
-  async function fxHistory(base, symbol, days = 30) {
-    const end = new Date().toISOString().slice(0, 10);
-    const start = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
-    const d = await fetch(`https://api.frankfurter.dev/v1/${start}..${end}?base=${base}&symbols=${symbol}`).then((r) => r.json());
-    return Object.entries(d.rates || {}).map(([date, r]) => ({ date, v: r[symbol] }));
-  }
-
-  // Country info via Wikipedia fallback (restcountries is deprecated but alpha still works sometimes)
-  async function country(name) {
-    try {
-      const d = await fetch(`https://restcountries.com/v3.1/alpha/${encodeURIComponent(name)}?fields=name,capital,population,region,subregion,languages,currencies,flag`).then((r) => r.json());
-      if (Array.isArray(d) && d.length) return d[0];
-      return null;
-    } catch (e) { return null; }
-  }
-
-  // all feeds snapshot for the LLM context block
   function liveBlock(S) {
     const L = [];
     if (S.quakes && S.quakes.length) {
@@ -99,28 +109,34 @@ ${langHint ? "- The operator's speech locale is " + langHint + " — likely repl
     }
     if (S.kp && S.kp.length) {
       const k = S.kp[S.kp.length - 1];
-      L.push("kp_index:" + k.kp.toFixed(1), "kp_time:" + k.t);
+      L.push("kp_index:" + k.kp.toFixed(1));
     }
     if (S.crypto && S.crypto.length) {
       L.push("crypto:" + S.crypto.map((c) => `${c.id}=$${Math.round(c.usd)}(${c.chg != null ? c.chg.toFixed(1) + "%" : "na"})`).join(" "));
     }
     if (S.issNow) {
-      L.push(`iss:lat ${S.issNow.lat.toFixed(1)},lon ${S.issNow.lon.toFixed(1)},alt ${Math.round(S.issNow.alt)}km,vel ${Math.round(S.issNow.vel)}km/h,${S.issNow.vis}`);
+      L.push(`iss:lat ${S.issNow.lat.toFixed(1)},lon ${S.issNow.lon.toFixed(1)},alt ${Math.round(S.issNow.alt)}km,vel ${Math.round(S.issNow.vel)}km/h`);
     }
     if (S.climate && S.climate.temp != null) {
-      L.push(`delhi_weather:temp ${S.climate.temp}C,wind ${Math.round(S.climate.wind)}km/h,rh ${S.climate.rh}%,aqi ${S.climate.aqi ?? "na"},pm25 ${S.climate.pm25 ?? "na"},sky_code ${S.climate.code ?? "na"}`);
+      L.push(`delhi_weather:temp ${S.climate.temp}C,wind ${Math.round(S.climate.wind)}km/h,rh ${S.climate.rh}%,aqi ${S.climate.aqi ?? "na"}`);
     }
     if (S.news && S.news.world && S.news.world.length) {
       L.push("top_headlines:" + S.news.world.slice(0, 5).map((n) => n.title).join(" | "));
     }
     if (S.launches && S.launches.length) {
-      const l = S.launches[0];
-      L.push(`next_launch:${l.name} (${l.status})`);
+      L.push(`next_launch:${S.launches[0].name} (${S.launches[0].status})`);
     }
+    try {
+      if (typeof GODSEYE !== "undefined" && GODSEYE.counts) {
+        const c = GODSEYE.counts();
+        if (c.flights) L.push(`live_flights:${c.flights} (military:${c.milFlights || 0}) near ${S.scanCenter ? S.scanCenter.name : "scan center"}`);
+        if (c.sats) L.push(`starlink_tracked:${c.sats}/${c.totalSats}`);
+      }
+    } catch (e) { }
     return L.length ? L.join("\n") : "no_live_data_synced_yet";
   }
 
-  return { ...AVAL, ready, chat, sysPrompt, wiki, fx, fxHistory, country, liveBlock };
+  return { ...AVAL, ready, signedIn, ensureSignIn, chat, wiki, fx, liveBlock, chatPollinations, chatPuter };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = AI;

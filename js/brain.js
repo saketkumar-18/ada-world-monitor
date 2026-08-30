@@ -162,7 +162,12 @@ async function aiAnswer(userText, lang) {
     if (convo.history.length > 12) convo.history = convo.history.slice(-12);
     respond(out, true);
   } catch (e) {
-    chatMsg("AI core offline hai. Free AI ke liye ek baar Puter sign-in popup aayega (email/Google, free) — phir main poori tarah baat kar paungi. Tab tak local commands chal rahi hain.", "ada");
+    const m = String(e.message || e);
+    if (m.includes("sign-in")) {
+      chatMsg("Mujhe ek chhota sa sign-in chahiye free AI ke liye — bas ek baar. Popup khul raha hai? Address bar ke right side icon pe click karke 'Always allow pop-ups from this site' kar do. Phir message dobara bhejo, popup khulega, email ya Google se sign in karo — bas, hamesha ke liye free AI on.", "ada");
+    } else {
+      chatMsg("AI thoda busy hai — thodi der baad try karo ya dobara bhejo. Local commands (flights, quakes, weather, dikhao Tokyo) abhi bhi chal rahe hain.", "ada");
+    }
   } finally {
     convo.busy = false;
     $("#comms-mode").textContent = listening ? "SUN RAHI HOON" : "STANDBY";

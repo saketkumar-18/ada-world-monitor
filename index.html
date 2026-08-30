@@ -83,8 +83,13 @@
     <div class="p-body" style="padding:0;position:relative">
       <div id="globe"></div>
       <div id="map" style="display:none"></div>
+      <div id="zoom-controls">
+        <button class="zbtn" id="zoom-in" title="Zoom in">+</button>
+        <button class="zbtn" id="zoom-out" title="Zoom out">−</button>
+        <button class="zbtn" id="zoom-rot" title="Auto-rotate on/off" style="font-size:11px">⟳</button>
+      </div>
       <div id="map-hud">
-        <div class="tl">SCANNING · <b id="hud-mode">3D GLOBE</b><br><span id="hud-coords">38.42N 79.46E</span></div>
+        <div class="tl">SCANNING · <b id="hud-mode">3D GLOBE</b><br><span id="hud-coords"></span></div>
         <div class="bl" id="iss-hud">ISS: SYNC…</div>
       </div>
     </div>
@@ -99,13 +104,22 @@
       </div>
       <div class="p-body chat-body">
         <div id="chat-log">
-          <div class="msg ada">Nam Saket! Main ADA hoon. Jo bhi poochhna hai poochho — main seedha jawab dungi, bilkul insaan ki tarah baat karte hue. Koi bhi bhasha chalegi. Aur globe ki taraf dekho — flights, satellites, sab LIVE chal rahe hain.</div>
+          <div class="msg ada">Nam Saket! Main ADA hoon — teri God's Eye. Jo poochhna hai poochh le, main seedha jawab dungi bilkul insaan ki tarah. Koi bhi bhasha chalegi. Globe pe flights, satellites, sab LIVE chal rahe hain.</div>
+        </div>
+        <div id="chat-chips">
+          <button class="qchip">aaj ka briefing do</button>
+          <button class="qchip">abhi flights kitni hain</button>
+          <button class="qchip">strongest earthquake today</button>
+          <button class="qchip">Tokyo dikhao</button>
+          <button class="qchip">starlink satellites batao</button>
+          <button class="qchip">dollar ka rate</button>
+          <button class="qchip">mausam Mumbai ka</button>
         </div>
         <div class="chat-input-row">
-          <input id="chat-in" type="text" placeholder="kuch bhi poochho… (Enter bhejo)" autocomplete="off">
+          <input id="chat-in" type="text" placeholder="kuch bhi poochho… (Enter)" autocomplete="off">
           <button id="chat-send">➤</button>
         </div>
-        <div class="comms-row">🎤 <button id="voice-btn" class="vsmall">▸ HOLD TO TALK (V)</button> <span id="comms-mode">STANDBY</span><span style="margin-left:auto" id="tts-state">TTS ON</span></div>
+        <div class="comms-row">🎤 <button id="voice-btn" class="vsmall">▸ BOLNA SHURU KARO (V)</button> <span id="comms-mode">STANDBY</span><span style="margin-left:auto" id="tts-state">TTS ON</span></div>
         <canvas id="wave"></canvas>
       </div>
     </section>
