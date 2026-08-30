@@ -118,6 +118,16 @@ function initGlobe() {
   });
   useGlobe = ok;
   $("#hud-mode").textContent = ok ? "3D GLOBE" : "2D MAP";
+  if (!ok) {
+    // CRITICAL FIX: globe failed -> immediately show the 2D map so the center
+    // panel is never blank. (Before, #map stayed display:none -> blank screen.)
+    $("#globe").style.display = "none";
+    $("#map").style.display = "block";
+    $("#btn-2d").classList.remove("on");
+    if (!map) initMap();
+    renderMapQuakes();
+    renderMapISS();
+  }
   return ok;
 }
 function syncGlobeData() {
