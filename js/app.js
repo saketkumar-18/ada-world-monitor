@@ -228,12 +228,24 @@ function pickVoice() {
 function speak(text) {
   if (!ttsOn || !("speechSynthesis" in window)) return;
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 1.02; u.pitch = 1; u.lang = convo.lastLang || "en-IN";
+  u.rate = 1.02; u.pitch = 1; u.volume = 1; u.lang = convo.lastLang || "en-IN";
   const v = pickVoice();
-  if (v) u.voice = v;
+  if (v) { u.voice = v; u.lang = v.lang; } // voice+lang consistent — prevents silent TTS
   u.onstart = () => { speaking = true; $("#comms-mode").textContent = "BOL RAHI HOON"; };
-  u.onend = () => { speaking = false; $("#comms-mode").textContent = listening ? "SUN RAHI HOON" : "STANDBY"; };
-  u.onerror = () => { speaking = false; $("#comms-mode").textContent = "STANDBY"; };
+  u.onend = () => {
+    speaking = false; $("#comms-mode").textContent = listening ? "SUN RAHI HOON" : "STANDBY";
+    // VOICE LOOP FIX: reopen mic only AFTER ADA finishes speaking (old logic reopened
+    // during speech, got skipped by the speaking-guard, and the loop died silently)
+    if (voiceLoop && !listening && !convo.busy) {
+      setTimeout(() => { if (voiceLoop && !listening && !speaking && !convo.busy) toggleVoice(); }, 600);
+    }
+  };
+  u.onerror = (e) => {
+    speaking = false; $("#comms-mode").textContent = "STANDBY";
+    if (voiceLoop && !listening && !convo.busy) {
+      setTimeout(() => { if (voiceLoop && !listening && !speaking && !convo.busy) toggleVoice(); }, 600);
+    }
+  };
   speechSynthesis.speak(u);
 }
 /* natural reply: strip asterisks/dashes/markdown so it reads like human speech */
@@ -291,9 +303,13 @@ function toggleVoice() {
   };
   recog.onerror = (e) => { if (e.error !== "no-speech") chatMsg("voice error: " + e.error, "ada"); };
   recog.onend = () => {
-    listening = false; $("#voice-btn").classList.remove("listening"); $("#voice-btn").textContent = "▸ HOLD TO TALK (V)";
+    listening = false; $("#voice-btn").classList.remove("listening"); $("#voice-btn").textContent = "▸ BOLNA SHURU KARO (V)";
     if (!speaking) $("#comms-mode").textContent = "STANDBY";
-    if (voiceLoop && !convo.busy) setTimeout(() => { if (voiceLoop && !listening && !speaking && !convo.busy) toggleVoice(); }, 500);
+    // NOTE: mic reopen now handled in speak().onend (after ADA finishes talking).
+    // If no speech will happen (e.g. no-speech error), reopen here after a delay.
+    if (voiceLoop && !speaking && !convo.busy) {
+      setTimeout(() => { if (voiceLoop && !listening && !speaking && !convo.busy) toggleVoice(); }, 800);
+    }
   };
   try { recog.start(); } catch (e) { }
 }
