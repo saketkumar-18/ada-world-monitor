@@ -276,8 +276,7 @@ async function sendChat() {
   inp.value = "";
   chatMsg(v, "user");
   const th = chatThinking();
-  // inside user-gesture: if AI needs sign-in, popup opens correctly
-  try { if (AI.ready && !AI.signedIn()) await AI.ensureSignIn(); } catch (e) { }
+  // bridge AI (primary) needs no sign-in; puter fallback opens popup on demand inside AI.chat
   try { await handleCommand(v); }
   catch (e) { chatMsg("arrey, kuch technical gadbad ho gayi — phir se try karo", "ada"); }
   th.remove();
@@ -297,7 +296,6 @@ function toggleVoice() {
     convo.lastLang = detectLang(t);
     chatMsg(t, "user");
     const th = chatThinking();
-    try { if (AI.ready && !AI.signedIn()) await AI.ensureSignIn(); } catch (e2) { }
     try { await handleCommand(t); } catch (err) { chatMsg("technical gadbad — phir se bolo", "ada"); }
     th.remove();
   };

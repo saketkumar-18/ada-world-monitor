@@ -69,15 +69,56 @@ const AI = (() => {
     throw new Error("puter unknown shape");
   }
 
-  /* ---------- unified chat: puter first (reliable), pollinations fallback ---------- */
+  /* ---------- provider 0: ADA Bridge (localhost) — Saket's own GLM model via tokenrouter.
+   * No signup, no popup, key stays on the laptop. PRIMARY. ---------- */
+  async function chatBridge(messages, opts) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 100000);
+    try {
+      const r = await fetch("http://127.0.0.1:8742/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: c.signal,
+        body: JSON.stringify({ messages, model: opts.model || "z-ai/glm-5.3-free" }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error("bridge: " + (d.error || r.status));
+      if (!d.content) throw new Error("bridge empty content");
+      return d.content;
+    } finally { clearTimeout(t); }
+  }
+
+  function bridgeUp() {
+    return fetch("http://127.0.0.1:8742/status", { signal: AbortSignal.timeout ? AbortSignal.timeout(2500) : undefined })
+      .then(r => r.ok).catch(() => false);
+  }
+
+  /* ---------- unified chat: bridge (own model, no signup) → puter → pollinations ---------- */
   async function chat(messages, opts = {}) {
     let err1;
-    try { return await chatPuter(messages, opts); }
+    try { return await chatBridge(messages, opts); }
     catch (e) { err1 = e; }
     let err2;
-    try { return await chatPollinations(messages, opts); }
+    try { return await chatPuter(messages, opts); }
     catch (e) { err2 = e; }
-    throw new Error("AI down (puter: " + (err1.message || "") + " / pollinations: " + (err2.message || "") + ")");
+    let err3;
+    try { return await chatPollinations(messages, opts); }
+    catch (e) { err3 = e; }
+    throw new Error("AI down (bridge: " + (err1.message || "").slice(0, 60) + " / puter: " + (err2.message || "").slice(0, 60) + " / pollinations: " + (err3.message || "").slice(0, 60) + ")");
+  }
+
+  function signedIn() {
+    try { return typeof puter !== "undefined" && puter.auth && typeof puter.auth.isSignedIn === "function" && puter.auth.isSignedIn(); }
+    catch (e) { return false; }
+  }
+  async function ensureSignIn() {
+    // bridge AI needs no sign-in at all; this exists only for the puter fallback path
+    if (bridgeUp) { /* bridge first — typically never reaches here */ }
+    if (signedIn()) return true;
+    if (typeof puter !== "undefined" && puter.auth && typeof puter.auth.signIn === "function") {
+      try { await puter.auth.signIn(); } catch (e) { throw new Error("sign-in popup blocked — address bar me popup allow karo"); }
+    }
+    return signedIn();
   }
 
   /* ---------- knowledge tools ---------- */
