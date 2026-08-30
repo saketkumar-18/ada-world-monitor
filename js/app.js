@@ -1,23 +1,14 @@
-/* ADA World Monitor — main application.
- * Real data: USGS quakes, ISS position, Kp space weather, crypto,
- * BBC news, Wikipedia events, HN tech, launches, weather/AQI.
- * Voice: Web Speech API. Zero keys. Zero build.
+/* ADA God's Eye — main app.
+ * 3D globe + live flights/sats + natural-language AI chat (human style).
  */
 "use strict";
 
 /* ================= state ================= */
 const S = {
-  quakes: [],
-  issTrail: [],        // [{lat,lon,ts}]
-  issNow: null,
-  kp: [],
-  crypto: [],
-  news: { world: [], tech: [], wiki: [] },
-  launches: [],
-  hn: [],
-  climate: null,
-  live: 0,
-  layerOn: { quakes: true, iss: true, choke: true },
+  quakes: [], issTrail: [], issNow: null, kp: [], crypto: [],
+  news: { world: [], tech: [], wiki: [] }, launches: [], hn: [],
+  climate: null, live: 0, layerOn: { quakes: true, iss: true, choke: true },
+  scanCenter: { lat: 28.61, lon: 77.23, name: "DELHI" },
 };
 
 const $ = (s) => document.querySelector(s);
@@ -33,18 +24,24 @@ const ago = (ts) => {
   return Math.floor(h / 24) + "d ago";
 };
 
-/* ================= terminal ================= */
-const termOut = $("#term-out");
-function log(level, tag, text) {
-  const ln = document.createElement("div");
-  ln.className = "ln " + level;
-  const t = document.createElement("span"); t.className = "ts"; t.textContent = "[" + fmtTime() + "] ";
-  const g = document.createElement("span"); g.className = "tag"; g.textContent = tag + " ";
-  const x = document.createElement("span"); x.className = "txt"; x.textContent = text;
-  ln.append(t, g, x);
-  termOut.appendChild(ln);
-  while (termOut.children.length > 250) termOut.removeChild(termOut.firstChild);
-  termOut.scrollTop = termOut.scrollHeight;
+/* ================= chat UI ================= */
+const chatLog = $("#chat-log");
+function chatMsg(text, who = "ada") {
+  const el = document.createElement("div");
+  el.className = "msg " + who;
+  el.textContent = text;
+  chatLog.appendChild(el);
+  while (chatLog.children.length > 60) chatLog.removeChild(chatLog.firstChild);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
+}
+function chatThinking() {
+  const el = document.createElement("div");
+  el.className = "msg ada thinking";
+  el.textContent = "soch rahi hoon…";
+  chatLog.appendChild(el);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
 }
 
 /* ================= clock ================= */
@@ -52,313 +49,143 @@ setInterval(() => {
   $("#clock").textContent = fmtTime();
   $("#dateline").textContent = fmtDate() + " · IST";
   const s = Math.floor((Date.now() - T0) / 1000);
-  $("#uptime").textContent = pad(Math.floor(s / 3600)) + ":" + pad(Math.floor(s / 60) % 60) + ":" + pad(s % 60);
 }, 500);
 
-/* ================= map ================= */
-let map = null, layerQuakes = null, layerISS = null, layerChoke = null, issMarker = null, issPath = null;
-const CHOKEPOINTS = [
-  { name: "Strait of Hormuz", lat: 26.57, lon: 56.25, note: "~20% of global oil" },
-  { name: "Suez Canal", lat: 30.42, lon: 32.35, note: "12% of trade" },
-  { name: "Panama Canal", lat: 9.08, lon: -79.68, note: "5% of trade" },
-  { name: "Strait of Malacca", lat: 2.5, lon: 101.5, note: "25% of trade" },
-  { name: "Bab el-Mandeb", lat: 12.58, lon: 43.33, note: "Red Sea gateway" },
-  { name: "Taiwan Strait", lat: 24.5, lon: 119.5, note: "chip supply line" },
-  { name: "Bosphorus", lat: 41.1, lon: 29.05, note: "grain corridor" },
-  { name: "Danish Straits", lat: 55.7, lon: 11.0, note: "Baltic oil exit" },
-];
-
-function mapFail(msg) {
-  log("err", "[MAP]", msg);
-  const box = $("#map");
-  if (box) box.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;letter-spacing:.14em;text-align:center;padding:0 30px">MAP OFFLINE —<br>all other feeds remain live</div>';
-}
+/* ================= globe + fallback map ================= */
+let map = null, layerQuakes = null, layerISS = null, layerChoke = null, issPath = null;
+let useGlobe = true;
 
 function initMap() {
-  if (typeof L === "undefined") { mapFail("Leaflet library not loaded"); return; }
+  if (typeof L === "undefined") return;
   try {
-    map = L.map("map", { worldCopyJump: true, zoomControl: false, attributionControl: true }).setView([25, 40], 2);
+    map = L.map("map", { worldCopyJump: true, zoomControl: false }).setView([25, 40], 2);
     L.control.zoom({ position: "bottomright" }).addTo(map);
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> · <a href="https://carto.com/">CARTO</a>',
       subdomains: "abcd", maxZoom: 19,
     }).addTo(map);
-
     layerChoke = L.layerGroup();
-    CHOKEPOINTS.forEach((c) => {
-      const m = L.marker([c.lat, c.lon], {
-        icon: L.divIcon({ className: "choke-icon", iconSize: [8, 8], html: "" }),
-      }).bindPopup(`<b style="color:#ff4d5e">${c.name}</b><br><span style="color:#54687c">${c.note}</span>`);
-      layerChoke.addLayer(m);
+    GODSEYE.CHOKE.forEach(([n, lat, lon]) => {
+      layerChoke.addLayer(L.marker([lat, lon], { icon: L.divIcon({ className: "choke-icon", iconSize: [8, 8], html: "" }) })
+        .bindPopup(`<b style="color:#ff4d5e">${n}</b>`));
     });
-
     layerQuakes = L.layerGroup();
     layerISS = L.layerGroup();
     issPath = L.polyline([], { className: "iss-path", color: "#35e0ff", weight: 1.5, dashArray: "4 3", opacity: 0.5 });
     layerOn.choke && layerChoke.addTo(map);
     layerOn.quakes && layerQuakes.addTo(map);
     layerOn.iss && layerISS.addTo(map);
-
-    // expose for the AGENT tools (JARVIS control)
     window.__adaMap = { map };
-  } catch (e) {
-    map = null;
-    mapFail("init failed: " + e.message);
-  }
+    window.__adaLayers = (key, on) => {
+      S.layerOn[key] = on; applyLayers(); return { layer: key, on };
+    };
+  } catch (e) { map = null; }
 }
-
-function renderQuakes() {
+function applyLayers() {
+  if (!map) return;
+  S.layerOn.quakes ? layerQuakes.addTo(map) : map.removeLayer(layerQuakes);
+  S.layerOn.iss ? layerISS.addTo(map) : map.removeLayer(layerISS);
+  S.layerOn.choke ? layerChoke.addTo(map) : map.removeLayer(layerChoke);
+}
+function renderMapQuakes() {
   if (!map || !layerQuakes) return;
   layerQuakes.clearLayers();
   S.quakes.slice(0, 120).forEach((q) => {
     const r = Math.max(4, Math.min(18, (q.mag || 0) * 3.2));
     const big = q.mag >= 5;
-    const m = L.circleMarker([q.lat, q.lon], {
+    layerQuakes.addLayer(L.circleMarker([q.lat, q.lon], {
       radius: r / 2, className: "quake-dot" + (big ? " big" : ""), fillColor: big ? "#ff4d5e" : "#ffb454",
       fillOpacity: 0.75, color: "#000", weight: 1,
-    }).bindPopup(
-      `<b style="color:${big ? "#ff4d5e" : "#ffb454"}">M ${q.mag}</b> ${q.place}<br>` +
-      `<span style="color:#54687c">depth ${Math.round(q.depth)} km · ${ago(q.time)} · </span><a href="${q.url}" target="_blank" style="color:#35e0ff">USGS ↗</a>`
-    );
-    layerQuakes.addLayer(m);
+    }).bindPopup(`<b style="color:${big ? "#ff4d5e" : "#ffb454"}">M ${q.mag}</b> ${q.place}<br><span style="color:#54687c">${ago(q.time)} · </span><a href="${q.url}" target="_blank" style="color:#35e0ff">USGS ↗</a>`));
   });
-  $("#quake-count").textContent = S.quakes.length;
 }
-
-function renderISS() {
-  if (!map || !layerISS) {
-    if (S.issNow) $("#iss-hud").innerHTML = `ISS: <b>${S.issNow.lat.toFixed(1)}°, ${S.issNow.lon.toFixed(1)}°</b> · ${Math.round(S.issNow.alt)} km`;
-    return;
-  }
+function renderMapISS() {
+  if (!map || !layerISS) return;
   layerISS.clearLayers();
   if (S.issNow) {
-    const icon = L.divIcon({ className: "iss-icon", iconSize: [10, 10], html: "" });
-    issMarker = L.marker([S.issNow.lat, S.issNow.lon], { icon }).addTo(layerISS)
-      .bindPopup(`<b style="color:#35e0ff">ISS</b> · alt ${Math.round(S.issNow.alt)} km · ${Math.round(S.issNow.vel)} km/h<br><span style="color:#54687c">${S.issNow.vis === "daylight" ? "☀ daylight pass" : "🌙 night pass"}</span>`);
+    layerISS.addLayer(L.marker([S.issNow.lat, S.issNow.lon], { icon: L.divIcon({ className: "iss-icon", iconSize: [10, 10], html: "" }) })
+      .bindPopup(`<b style="color:#35e0ff">ISS</b> · alt ${Math.round(S.issNow.alt)} km`));
     if (S.issTrail.length > 1) issPath.setLatLngs(S.issTrail.map((p) => [p.lat, p.lon])).addTo(layerISS);
     $("#iss-hud").innerHTML = `ISS: <b>${S.issNow.lat.toFixed(1)}°, ${S.issNow.lon.toFixed(1)}°</b> · ${Math.round(S.issNow.alt)} km`;
   }
 }
 
-/* ================= left panels ================= */
-function kpColor(k) {
-  if (k >= 7) return "#ff4d5e";
-  if (k >= 5) return "#ffb454";
-  if (k >= 4) return "#35e0ff";
-  return "#3ddc84";
-}
-function kpLabel(k) {
-  if (k >= 7) return "SEVERE STORM";
-  if (k >= 5) return "GEOMAG STORM";
-  if (k >= 4) return "UNSETTLED";
-  return "QUIET";
-}
-function renderKp() {
-  const box = $("#kp-chart");
-  box.innerHTML = "";
-  const max = 9;
-  S.kp.forEach((r) => {
-    const b = document.createElement("div");
-    b.className = "bar";
-    b.style.height = Math.max(3, (r.kp / max) * 64) + "px";
-    b.style.background = kpColor(r.kp);
-    b.title = r.t + " · Kp " + r.kp;
-    box.appendChild(b);
+/* ================= god's eye globe ================= */
+function initGlobe() {
+  const ok = GODSEYE.init("globe", (lat, lng) => {
+    S.scanCenter = { lat: +lat.toFixed(2), lon: +lng.toFixed(2), name: "CUSTOM" };
+    $("#loc-label").textContent = `${S.scanCenter.lat}N ${S.scanCenter.lon}E · SCAN`;
   });
-  const last = S.kp[S.kp.length - 1];
-  if (last) {
-    const lvl = kpLabel(last.kp);
-    $("#kp-meta").innerHTML =
-      `Kp <b>${last.kp.toFixed(1)}</b> <span class="kp-badge" style="color:${kpColor(last.kp)};border:1px solid ${kpColor(last.kp)}33">${lvl}</span><br>` +
-      `<span style="color:var(--dim)">3-hour readings · last 90h · NOAA SWPC</span>`;
-  }
+  useGlobe = ok;
+  $("#hud-mode").textContent = ok ? "3D GLOBE" : "2D MAP";
+  return ok;
+}
+function syncGlobeData() {
+  if (!useGlobe) return;
+  GODSEYE.state.quakes = S.quakes.slice(0, 60).map(q => ({ mag: q.mag, place: q.place, lat: q.lat, lon: q.lon, time: q.time }));
+  GODSEYE.renderQuakes();
+  GODSEYE.renderFlights();
+  GODSEYE.renderSats();
+}
+function updateCounts() {
+  const c = useGlobe ? GODSEYE.counts() : { flights: 0, milFlights: 0, sats: 0, totalSats: 0, quakes: S.quakes.length };
+  $("#c-flights").textContent = c.flights;
+  $("#c-mil").textContent = c.milFlights;
+  $("#c-quakes").textContent = S.quakes.length;
+  $("#c-sats").textContent = c.totalSats > 0 ? c.sats + "/" + c.totalSats : c.sats;
+  if (S.kp.length) $("#c-kp").textContent = S.kp[S.kp.length - 1].kp.toFixed(1);
 }
 
-function renderCrypto() {
-  const box = $("#market-rows");
-  box.innerHTML = "";
-  S.crypto.forEach((c) => {
-    const up = c.chg != null && c.chg >= 0;
-    const nm = { bitcoin: "BTC", ethereum: "ETH", solana: "SOL" }[c.id] || c.id.toUpperCase();
-    const price = c.usd >= 1000 ? "$" + Math.round(c.usd).toLocaleString("en-IN") : "$" + c.usd.toFixed(2);
-    const r = document.createElement("div");
-    r.className = "m-row";
-    r.innerHTML = `<span class="sym">${nm}</span><span class="nm">${c.id}</span>
-      <span class="price">${price}</span>
-      <span class="chg ${up ? "up" : "down"}">${c.chg == null ? "--" : (up ? "+" : "") + c.chg.toFixed(1) + "%"}</span>`;
-    box.appendChild(r);
-  });
-}
-
-const WMO = { 0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 61: "Light rain", 63: "Rain", 65: "Heavy rain", 71: "Light snow", 73: "Snow", 75: "Heavy snow", 80: "Rain showers", 81: "Showers", 82: "Violent showers", 95: "Thunderstorm", 96: "Storm+hail", 99: "Severe storm" };
-function renderClimate() {
-  if (!S.climate) return;
-  const c = S.climate;
-  const cells = [
-    ["TEMP", c.temp != null ? c.temp.toFixed(1) + "°C" : "--"],
-    ["WIND", c.wind != null ? Math.round(c.wind) + " km/h" : "--"],
-    ["HUMIDITY", c.rh != null ? c.rh + "%" : "--"],
-    ["AQI (US)", c.aqi != null ? c.aqi : "--"],
-    ["SKY", WMO[c.code] || "—"],
-    ["PM2.5", c.pm25 != null ? c.pm25.toFixed(1) : "--"],
-  ];
-  $("#climate-grid").innerHTML = cells.map(([l, v]) =>
-    `<div class="c-cell"><div class="lab">${l}</div><div class="val">${v}</div></div>`).join("");
-}
-
-/* ================= intel feed ================= */
-let intelTab = "world";
-function renderIntel() {
-  const box = $("#intel-list");
-  box.innerHTML = "";
-  let items = [];
-  if (intelTab === "world") items = S.news.world;
-  else if (intelTab === "tech") items = S.news.tech;
-  else items = S.news.wiki;
-
-  if (!items.length) {
-    box.innerHTML = `<div class="f-item" style="color:var(--muted)">awaiting feed…</div>`;
-    return;
-  }
-  items.forEach((it) => {
-    const el = document.createElement("div");
-    el.className = "f-item sev-" + (it.sev || "low");
-    el.innerHTML = `<div class="f-top"><span class="sev ${it.sev || "low"}">${it.sevTag || "INTEL"}</span><span class="tm">${ago(it.ts)}</span></div>
-      <a href="${it.link}" target="_blank" rel="noopener">${it.title}</a>
-      <div class="src">${it.src}</div>`;
-    box.appendChild(el);
-  });
-}
-
-$("#intel-tabs").addEventListener("click", (e) => {
-  const b = e.target.closest(".tab");
-  if (!b) return;
-  document.querySelectorAll("#intel-tabs .tab").forEach((t) => t.classList.remove("active"));
-  b.classList.add("active");
-  intelTab = b.dataset.tab;
-  renderIntel();
-});
-
-/* ================= map toggles ================= */
-function bindToggles() {
-  const apply = () => {
-    if (!map) return;
-    S.layerOn.quakes ? layerQuakes.addTo(map) : map.removeLayer(layerQuakes);
-    S.layerOn.iss ? layerISS.addTo(map) : map.removeLayer(layerISS);
-    S.layerOn.choke ? layerChoke.addTo(map) : map.removeLayer(layerChoke);
-  };
-  // expose for AGENT tool map_layer
-  window.__adaLayers = (key, on) => {
-    S.layerOn[key] = on;
-    const sel = { quakes: "#toggle-quakes", iss: "#toggle-iss", choke: "#toggle-choke" }[key];
-    if (sel) $(sel).classList.toggle("on", on);
-    apply();
-    return { layer: key, on };
-  };
-  [["#toggle-quakes", "quakes"], ["#toggle-iss", "iss"], ["#toggle-choke", "choke"]].forEach(([sel, key]) => {
-    const el = $(sel);
-    el.classList.add("on");
-    el.addEventListener("click", () => { S.layerOn[key] = !S.layerOn[key]; el.classList.toggle("on"); apply(); });
-  });
-}
-
-/* ================= data refresh ================= */
+/* ================= feeds ================= */
 let liveFeeds = 0;
-function bumpLive(ok) { liveFeeds = Math.max(0, liveFeeds + (ok ? 1 : 0)); $("#live-count").textContent = liveFeeds + " FEEDS LIVE"; }
+function bumpLive() { liveFeeds++; $("#live-count").textContent = liveFeeds + " FEEDS"; }
 
 async function refreshQuakes() {
-  try {
-    S.quakes = await API.quakes();
-    renderQuakes();
-    const big = S.quakes.filter((q) => q.mag >= 5);
-    if (big.length) {
-      big.slice(0, 2).forEach((q) => log("warn", "[USGS]", `M${q.mag} — ${q.place} (${ago(q.time)})`));
-    }
-    bumpLive(true);
-  } catch (e) { log("err", "[USGS]", "feed down: " + e.message); }
+  try { S.quakes = await API.quakes(); renderMapQuakes(); syncGlobeData(); bumpLive(); } catch (e) { }
 }
-
 async function refreshISS() {
   try {
     const p = await API.iss();
     S.issNow = p;
-    S.issTrail.push({ lat: p.lat, lon: p.lon, ts: Date.now() });
+    S.issTrail.push({ lat: p.lat, lon: p.lon });
     if (S.issTrail.length > 240) S.issTrail.shift();
-    renderISS();
-    bumpLive(true);
+    renderMapISS();
+    if (useGlobe) { GODSEYE.state.iss = { lat: p.lat, lon: p.lon, alt: p.alt }; GODSEYE.state.issPath = S.issTrail.slice(-60); GODSEYE.renderISS(); }
   } catch (e) { $("#iss-hud").textContent = "ISS: LINK LOST"; }
 }
-
 async function refreshKp() {
-  try {
-    S.kp = await API.kp();
-    renderKp();
-    bumpLive(true);
-  } catch (e) { log("err", "[SWPC]", "space weather feed down"); }
+  try { S.kp = await API.kp(); bumpLive(); } catch (e) { }
 }
-
 async function refreshCrypto() {
   try {
     S.crypto = await API.crypto();
-    renderCrypto();
-    bumpLive(true);
-  } catch (e) { log("err", "[MKT]", "market feed down"); }
+    const box = $("#markets-mini");
+    box.innerHTML = S.crypto.map(c => {
+      const up = c.chg != null && c.chg >= 0;
+      const nm = { bitcoin: "BTC", ethereum: "ETH", solana: "SOL" }[c.id] || c.id.toUpperCase();
+      return `<div>${nm} <b>$${Math.round(c.usd).toLocaleString("en-IN")}</b> <span class="${up ? "up" : "down"}">${c.chg == null ? "" : (up ? "+" : "") + c.chg.toFixed(1) + "%"}</span></div>`;
+    }).join("");
+    bumpLive();
+  } catch (e) { }
 }
-
-async function refreshClimate() {
-  try {
-    const w = await API.weather(28.61, 77.23);
-    let aq = null;
-    try { aq = await API.airquality(28.61, 77.23); } catch (_) { }
-    S.climate = { temp: w.temp, wind: w.wind, rh: w.rh, code: w.code, aqi: aq ? aq.aqi : null, pm25: aq ? aq.pm25 : null };
-    renderClimate();
-    bumpLive(true);
-  } catch (e) { log("err", "[WX]", "climate feed down"); }
-}
-
 async function refreshNews() {
-  try {
-    const world = await API.worldNews(12);
-    S.news.world = world.map((n) => ({ ...n, sev: n.title.match(/war|attack|kill|strike|missile|dead|nuclear/i) ? "high" : n.title.match(/flood|quake|protest|sanction|election|court/i) ? "moderate" : "low", sevTag: "WORLD" }));
-    renderIntel();
-    bumpLive(true);
-  } catch (e) { log("err", "[BBC]", "world news feed down"); }
-  try {
-    const tech = await API.techNews(10);
-    S.news.tech = tech.map((n) => ({ ...n, sev: "low", sevTag: "TECH" }));
-    if (intelTab === "tech") renderIntel();
-    bumpLive(true);
-  } catch (e) { /* silent */ }
-  try {
-    const wiki = await API.wikiEvents(2);
-    S.news.wiki = wiki.map((n) => ({ ...n, sev: "moderate", sevTag: "EVENT" }));
-    if (intelTab === "wiki") renderIntel();
-    bumpLive(true);
-  } catch (e) { /* silent */ }
+  try { S.news.world = await API.worldNews(8); bumpLive(); } catch (e) { }
+  try { S.news.tech = await API.techNews(6); bumpLive(); } catch (e) { }
 }
-
-async function refreshLaunches() {
-  try {
-    S.launches = await API.launches();
-    if (S.launches.length) {
-      const next = S.launches[0];
-      log("info", "[LAUNCH]", `${next.name} — ${next.status} · pad: ${next.pad || "TBD"}`);
-    }
-    bumpLive(true);
-  } catch (e) { /* silent */ }
+async function refreshFlights() {
+  await GODSEYE.fetchFlights(S.scanCenter.lat, S.scanCenter.lon);
+  await GODSEYE.fetchMilFlights(S.scanCenter.lat, S.scanCenter.lon);
+  syncGlobeData();
 }
-
-async function refreshHN() {
-  try {
-    S.hn = await API.hn(8);
-    bumpLive(true);
-  } catch (e) { /* silent */ }
+async function refreshSats() {
+  const n = await GODSEYE.fetchTLEs();
+  if (n) { GODSEYE.propagateSats(); syncGlobeData(); }
 }
-
 async function refreshAll() {
   liveFeeds = 0;
-  await Promise.allSettled([refreshQuakes(), refreshISS(), refreshKp(), refreshCrypto(), refreshClimate(), refreshNews(), refreshLaunches(), refreshHN()]);
-  log("sys", "[SYS]", `refresh complete · ${liveFeeds} feeds live · next in 120s`);
+  await Promise.allSettled([refreshQuakes(), refreshISS(), refreshKp(), refreshCrypto(), refreshNews(), refreshFlights()]);
+  updateCounts();
+  log("sys", "[SYS]", `refresh ok · ${liveFeeds} feeds`);
 }
 
 /* ================= voice ================= */
@@ -386,17 +213,14 @@ function drawWave(now) {
     wctx.fillRect(i * bw + 1, (H - h) / 2, bw - 2, h);
   }
 }
-
 function pickVoice() {
   const vs = speechSynthesis.getVoices();
   if (!vs.length) return null;
-  const want = (convo.lastLang || "en-IN").split("-")[0];
-  // prefer exact lang match, then language family, then english, then any
   const byLang = (l) => vs.filter((v) => v.lang.replace("_", "-").toLowerCase().startsWith(l.toLowerCase()));
-  const female = (arr) => arr.find((v) => /female|zira|heera|neerja|sonia|libby|swara|google/i.test(v.name));
+  const female = (arr) => arr.find((v) => /female|zira|heera|neerja|sonia|libby|swara|google|kalpana|madhuri/i.test(v.name));
   const pool = byLang(convo.lastLang || "en-IN");
   if (pool.length) return female(pool) || pool[0];
-  const fam = byLang(want);
+  const fam = byLang((convo.lastLang || "en-IN").split("-")[0]);
   if (fam.length) return female(fam) || fam[0];
   const en = byLang("en");
   return female(en) || en[0] || vs[0];
@@ -404,124 +228,115 @@ function pickVoice() {
 function speak(text) {
   if (!ttsOn || !("speechSynthesis" in window)) return;
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 1.04; u.pitch = 1;
-  u.lang = convo.lastLang || "en-IN";
+  u.rate = 1.02; u.pitch = 1; u.lang = convo.lastLang || "en-IN";
   const v = pickVoice();
   if (v) u.voice = v;
-  u.onstart = () => { speaking = true; $("#comms-mode").textContent = "RESPONDING"; };
-  u.onend = () => { speaking = false; $("#comms-mode").textContent = listening ? "LISTENING" : "STANDBY"; };
-  u.onerror = () => { speaking = false; $("#comms-mode").textContent = listening ? "LISTENING" : "STANDBY"; };
+  u.onstart = () => { speaking = true; $("#comms-mode").textContent = "BOL RAHI HOON"; };
+  u.onend = () => { speaking = false; $("#comms-mode").textContent = listening ? "SUN RAHI HOON" : "STANDBY"; };
+  u.onerror = () => { speaking = false; $("#comms-mode").textContent = "STANDBY"; };
   speechSynthesis.speak(u);
 }
+/* natural reply: strip asterisks/dashes/markdown so it reads like human speech */
+function cleanForSpeech(t) {
+  return String(t)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")   // **bold**
+    .replace(/\*([^*]+)\*/g, "$1")       // *italic*
+    .replace(/`([^`]+)`/g, "$1")        // `code`
+    .replace(/^#{1,4}\s+/gm, "")         // headings
+    .replace(/^\s*[-•]\s+/gm, "")        // list dashes
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1") // links
+    .replace(/[_~|>#]+/g, " ")            // misc md chars
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 function respond(text, sayIt = true) {
-  log("ok", "[ADA]", text);
-  if (sayIt) speak(text);
+  const clean = cleanForSpeech(text);
+  chatMsg(clean, "ada");
+  if (sayIt) speak(clean);
 }
+function log(level, tag, text) { chatThinking && null; /* terminal removed; keep for compat */ }
 
-/* ---- briefing: the killer feature ---- */
-async function morningBriefing(voice = true) {
-  log("info", "[ADA]", "compiling global briefing…");
-  const parts = [];
-
-  // quakes
-  if (S.quakes.length) {
-    const m5 = S.quakes.filter((q) => q.mag >= 5);
-    parts.push(`Seismic: ${S.quakes.length} earthquakes above magnitude 2.5 in the last 24 hours${m5.length ? `, including ${m5.length} above magnitude 5 — the strongest, magnitude ${m5[0].mag}, ${m5[0].place}` : ""}.`);
-  }
-  // space weather
-  if (S.kp.length) {
-    const last = S.kp[S.kp.length - 1];
-    parts.push(`Space weather: geomagnetic Kp index at ${last.kp.toFixed(1)} — ${kpLabel(last.kp).toLowerCase()}.`);
-  }
-  // markets
-  if (S.crypto.length) {
-    const btc = S.crypto.find((c) => c.id === "bitcoin");
-    if (btc) parts.push(`Markets: Bitcoin at $${Math.round(btc.usd).toLocaleString("en-IN")}, ${btc.chg != null ? (btc.chg >= 0 ? "up" : "down") + Math.abs(btc.chg).toFixed(1) + " percent in 24 hours" : "flat"}.`);
-  }
-  // ISS
-  if (S.issNow) parts.push(`The ISS is over ${S.issNow.lat.toFixed(0)} degrees north, ${Math.abs(S.issNow.lon).toFixed(0)} degrees ${S.issNow.lon >= 0 ? "east" : "west"}.`);
-  // climate
-  if (S.climate && S.climate.temp != null) {
-    parts.push(`Delhi: ${S.climate.temp.toFixed(0)} degrees${S.climate.aqi != null ? `, air quality index ${S.climate.aqi}` : ""}.`);
-  }
-  // top headline
-  if (S.news.world.length) parts.push(`Top story: ${S.news.world[0].title}`);
-  // next launch
-  if (S.launches.length) {
-    const l = S.launches[0];
-    parts.push(`Next launch: ${l.name}.`);
-  }
-
-  const text = "Good day, Saket. " + parts.join(" ") + " All feeds nominal.";
-  log("ok", "[BRIEF]", parts.length + " sections compiled");
-  if (voice) speak(text);
-  else log("sys", "[BRIEF]", text);
-  return text;
+/* ================= input wiring ================= */
+async function sendChat() {
+  const inp = $("#chat-in");
+  const v = inp.value.trim();
+  if (!v) return;
+  inp.value = "";
+  chatMsg(v, "user");
+  const th = chatThinking();
+  try { await handleCommand(v); }
+  catch (e) { chatMsg("arrey, kuch technical gadbad ho gayi — phir se try karo", "ada"); }
+  th.remove();
 }
-
-/* ---- commands: routed through brain.js (local fast-path + AI) ---- */
-async function handleCommand(raw) {
-  const text = raw.trim();
-  if (!text) return;
-  log("user", "[OP]", text);
-  const lang = detectLang(text);
-  convo.lastLang = lang;
-  const fast = localCommand(text);
-  if (fast) { const r = fast(); if (r && r.then) await r; return; }
-  await aiAnswer(text, lang);
-}
+$("#chat-send").addEventListener("click", sendChat);
+$("#chat-in").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
 
 function toggleVoice() {
-  if (!SR) { log("warn", "[SYS]", "speech recognition not supported here — text terminal works"); return; }
+  if (!SR) { chatMsg("is browser me voice support nahi hai — Chrome/Edge try karo. Type karke poochho, main sun rahi hoon.", "ada"); return; }
   if (listening) { try { recog.stop(); } catch (_) { } return; }
   recog = new SR();
-  // ANY language: use last detected, default en-IN; browsers auto-handle code switching
   recog.lang = convo.lastLang || "en-IN";
   recog.interimResults = false; recog.maxAlternatives = 1;
-  recog.continuous = false;
-  recog.onstart = () => { listening = true; $("#voice-btn").classList.add("listening"); $("#voice-btn").textContent = "■ Listening…"; $("#comms-mode").textContent = "LISTENING"; log("sys", "[SYS]", "voice link open (" + recog.lang + ")"); };
+  recog.onstart = () => { listening = true; $("#voice-btn").classList.add("listening"); $("#voice-btn").textContent = "■ SUN RAHI HOON"; $("#comms-mode").textContent = "SUN RAHI HOON"; };
   recog.onresult = async (e) => {
     const t = e.results[0][0].transcript;
-    // remember detected language for next round + set recognition lang to it
-    const d = detectLang(t);
-    convo.lastLang = d;
-    await handleCommand(t);
+    convo.lastLang = detectLang(t);
+    chatMsg(t, "user");
+    const th = chatThinking();
+    try { await handleCommand(t); } catch (err) { chatMsg("technical gadbad — phir se bolo", "ada"); }
+    th.remove();
   };
-  recog.onerror = (e) => { if (e.error !== "no-speech") log("warn", "[SYS]", "voice error: " + e.error); };
+  recog.onerror = (e) => { if (e.error !== "no-speech") chatMsg("voice error: " + e.error, "ada"); };
   recog.onend = () => {
-    listening = false; $("#voice-btn").classList.remove("listening"); $("#voice-btn").textContent = "▸ Activate Voice Link";
-    if (!speaking && !convo.busy) $("#comms-mode").textContent = "STANDBY";
-    // continuous conversation: re-open after ADA finishes speaking
-    if (voiceLoop && !convo.busy) setTimeout(() => { if (voiceLoop && !listening && !speaking && !convo.busy) toggleVoice(); }, 400);
+    listening = false; $("#voice-btn").classList.remove("listening"); $("#voice-btn").textContent = "▸ HOLD TO TALK (V)";
+    if (!speaking) $("#comms-mode").textContent = "STANDBY";
+    if (voiceLoop && !convo.busy) setTimeout(() => { if (voiceLoop && !listening && !speaking && !convo.busy) toggleVoice(); }, 500);
   };
   try { recog.start(); } catch (e) { }
 }
-
-$("#voice-btn").addEventListener("click", () => { voiceLoop = !voiceLoop; if (voiceLoop) log("sys", "[SYS]", "continuous voice loop ON (V to stop)"); toggleVoice(); });
-$("#brief-btn").addEventListener("click", () => morningBriefing(true));
-$("#cmd").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && e.target.value.trim()) { const v = e.target.value; e.target.value = ""; handleCommand(v); }
-});
+$("#voice-btn").addEventListener("click", () => { voiceLoop = !voiceLoop; toggleVoice(); });
 document.addEventListener("keydown", (e) => {
-  if (e.target === $("#cmd")) return;
+  if (e.target === $("#chat-in")) return;
   const k = e.key.toLowerCase();
-  if (k === "v") { voiceLoop = !voiceLoop; if (voiceLoop) log("sys", "[SYS]", "continuous voice loop ON (V to stop)"); toggleVoice(); }
-  else if (k === "b") morningBriefing(true);
-  else if (k === "s") { log("sys", "[SYS]", "manual scan"); refreshQuakes(); }
-  else if (k === "r") refreshAll();
+  if (k === "v") { voiceLoop = !voiceLoop; toggleVoice(); }
   else if (k === "m") { ttsOn = !ttsOn; $("#tts-state").textContent = ttsOn ? "TTS ON" : "TTS OFF"; speechSynthesis.cancel(); }
-  else if (k === "/") { e.preventDefault(); $("#cmd").focus(); }
+  else if (k === "/") { e.preventDefault(); $("#chat-in").focus(); }
+  else if (k === "l") { GODSEYE.flyTo(S.scanCenter.lat, S.scanCenter.lon, 1.2); }
+});
+
+/* ================= layer buttons ================= */
+document.querySelectorAll("#ge-layer-btns .lbtn").forEach(b => {
+  b.addEventListener("click", () => {
+    const key = b.dataset.layer;
+    const on = !b.classList.contains("on");
+    b.classList.toggle("on", on);
+    if (key === "quakes") { S.layerOn.quakes = on; if (useGlobe) GODSEYE.setLayer("quakes", on); renderMapQuakes(); }
+    if (key === "flights" && useGlobe) GODSEYE.setLayer("flights", on);
+    if (key === "sats" && useGlobe) GODSEYE.setLayer("sats", on);
+    if (key === "iss") { S.layerOn.iss = on; if (useGlobe) GODSEYE.setLayer("iss", on); renderMapISS(); }
+  });
+});
+$("#btn-locate").addEventListener("click", () => {
+  GODSEYE.flyTo(S.scanCenter.lat, S.scanCenter.lon, 0.9);
+  refreshFlights();
+});
+$("#btn-2d").addEventListener("click", () => {
+  useGlobe = !useGlobe;
+  $("#globe").style.display = useGlobe ? "block" : "none";
+  $("#map").style.display = useGlobe ? "none" : "block";
+  $("#hud-mode").textContent = useGlobe ? "3D GLOBE" : "2D MAP";
+  if (!useGlobe && !map) initMap();
+  if (useGlobe) syncGlobeData(); else { renderMapQuakes(); renderMapISS(); }
 });
 
 /* ================= boot ================= */
 const BOOT = [
-  ["ADA WORLD MONITOR v1.0 — cold start", false],
-  ["> linking USGS seismic network ....... <b>OK</b>", true],
-  ["> acquiring ISS telemetry (25544) .... <b>OK</b>", true],
-  ["> NOAA space weather (Kp index) ..... <b>OK</b>", true],
-  ["> market + climate + news relays ..... <b>OK</b>", true],
-  ["> voice matrix calibrated ............ <b>OK</b>", true],
-  ["<b>ALL FEEDS NOMINAL — WELCOME, SAKET</b>", true],
+  ["ADA GOD'S EYE v2.0 — cold start", false],
+  ["> spinning 3D globe engine .......... <b>OK</b>", true],
+  ["> linking live flight radar (ADS-B) . <b>OK</b>", true],
+  ["> loading Starlink constellation .... <b>OK</b>", true],
+  ["> arming AI neural core ............ <b>OK</b>", true],
+  ["<b>NO PLACE LEFT HIDDEN — WELCOME SAKET</b>", true],
 ];
 function runBoot(cb) {
   const box = $("#boot-lines");
@@ -541,29 +356,12 @@ function runBoot(cb) {
   $("#boot").addEventListener("click", () => { clearInterval(iv); i = BOOT.length; });
 }
 
-/* ================= main loop ================= */
-function frame(now) { drawWave(now); requestAnimationFrame(frame); }
-
-window.addEventListener("resize", sizeWave);
-if ("speechSynthesis" in window) {
-  speechSynthesis.onvoiceschanged = () => { };
-  speechSynthesis.getVoices();
-}
-// prime TTS on first interaction (autoplay policy)
-const prime = () => { const u = new SpeechSynthesisUtterance(""); u.volume = 0; speechSynthesis.speak(u); document.removeEventListener("click", prime); document.removeEventListener("keydown", prime); };
-document.addEventListener("click", prime);
-document.addEventListener("keydown", prime);
-
-initMap();
-bindToggles();
-sizeWave();
-window.addEventListener("error", (e) => { try { log("err", "[ERR]", String(e.message || e.type)); } catch (_) { } });
-// bridge status poll (OS runtime)
+/* ================= bridge status ================= */
 async function pollBridge() {
   try {
     const r = await fetch("http://127.0.0.1:8742/status", { signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined });
     const j = await r.json();
-    if (j.error || !j.alive) throw new Error("bad status");
+    if (j.error || !j.alive) throw new Error();
     $("#bridge-label").textContent = "OS: ARMED";
     $("#bridge-chip").querySelector(".led").style.background = "var(--green)";
     $("#bridge-chip").querySelector(".led").style.boxShadow = "0 0 6px var(--green)";
@@ -573,14 +371,33 @@ async function pollBridge() {
     $("#bridge-chip").querySelector(".led").style.boxShadow = "0 0 6px var(--amber)";
   }
 }
+
+/* ================= main ================= */
+function frame(now) { drawWave(now); requestAnimationFrame(frame); }
+window.addEventListener("resize", sizeWave);
+if ("speechSynthesis" in window) { speechSynthesis.onvoiceschanged = () => { }; speechSynthesis.getVoices(); }
+const prime = () => { const u = new SpeechSynthesisUtterance(""); u.volume = 0; speechSynthesis.speak(u); document.removeEventListener("click", prime); document.removeEventListener("keydown", prime); };
+document.addEventListener("click", prime);
+document.addEventListener("keydown", prime);
+window.addEventListener("error", (e) => { try { chatMsg("error: " + (e.message || e.type), "ada"); } catch (_) { } });
+
+initMap();
+initGlobe();
+bindTogglesCompat();
+sizeWave();
 pollBridge();
 setInterval(pollBridge, 30000);
 runBoot(() => {
-  log("ok", "[SYS]", "ADA World Monitor online · 8 feeds armed");
-  log("sys", "[SYS]", "HELP for commands · B for briefing · V for voice");
-  if (!map) log("warn", "[SYS]", "running in degraded mode — feeds live, map offline");
   refreshAll();
+  refreshSats();
   setInterval(refreshAll, 120000);
   setInterval(refreshISS, 15000);
+  setInterval(() => { if (useGlobe) { GODSEYE.propagateSats(); GODSEYE.renderSats(); } }, 30000);
+  setInterval(() => { GODSEYE.fetchFlights(S.scanCenter.lat, S.scanCenter.lon).then(syncGlobeData); }, 60000);
 });
 requestAnimationFrame(frame);
+
+/* compat shim so brain.js/tools.js toggles keep working */
+function bindTogglesCompat() {
+  window.__adaMap = window.__adaMap || (map ? { map } : null);
+}

@@ -3,19 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="ADA World Monitor — real-time global intelligence dashboard. Earthquakes, space weather, crypto markets, world news, launches and climate on one dark map. Free, no keys, single build.">
+<meta name="description" content="ADA God's Eye — 3D live globe with flights, Starlink satellites, quakes and a talking AI that answers like a human.">
 <meta name="theme-color" content="#050810">
-<title>ADA — World Monitor</title>
+<title>ADA — God's Eye</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='10' fill='none' stroke='%2335e0ff' stroke-width='3'/><circle cx='16' cy='16' r='3' fill='%2335e0ff'/></svg>">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <script src="vendor/leaflet.js"></script>
+<script src="vendor/globe.gl.min.js"></script>
+<script src="vendor/satellite.min.js"></script>
 <link rel="stylesheet" href="css/main.css">
 <script src="https://js.puter.com/v2/"></script>
 </head>
 <body>
 
 <div id="boot"><div id="boot-inner">
-  <div class="b-title">A D A · WORLD MONITOR</div>
+  <div class="b-title">A D A · GOD'S EYE</div>
   <div id="boot-lines"></div>
 </div></div>
 
@@ -28,15 +30,14 @@
       <path d="M16 3v5M16 24v5M3 16h5M24 16h5" stroke="#35e0ff" stroke-width="1" opacity=".6"/>
     </svg>
     <div>
-      <div class="name">ADA <span class="name-2">WORLD MONITOR</span></div>
-      <div class="sub">REAL-TIME GLOBAL INTELLIGENCE · FREE · NO KEYS</div>
+      <div class="name">ADA <span class="name-2">GOD'S EYE</span></div>
+      <div class="sub">NO PLACE LEFT HIDDEN · REAL-TIME GLOBAL AWARENESS</div>
     </div>
   </div>
   <div id="top-status">
-    <span class="chip"><span class="led ok"></span><span id="live-count">0 FEEDS LIVE</span></span>
-    <span class="chip"><span class="led ok"></span>AUTO-REFRESH</span>
-    <span class="chip" id="bridge-chip" title="OS runtime (localhost bridge)"><span class="led warn" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></span><span id="bridge-label">OS: OFFLINE</span></span>
-    <span>UPTIME <b id="uptime">00:00:00</b></span>
+    <span class="chip"><span class="led ok"></span><span id="live-count">0 FEEDS</span></span>
+    <span class="chip" id="bridge-chip" title="OS runtime"><span class="led" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></span><span id="bridge-label">OS: OFFLINE</span></span>
+    <span class="chip" id="loc-chip" title="Current scan center"><span class="led" style="background:var(--cyan);box-shadow:0 0 6px var(--cyan)"></span><span id="loc-label">28.6N 77.2E · DELHI</span></span>
   </div>
   <div id="clockbox">
     <div id="clock">--:--:--</div>
@@ -46,83 +47,69 @@
 
 <div id="app">
 
-  <!-- LEFT: monitors -->
+  <!-- LEFT: live counts (God's Eye panel from the video) -->
   <aside id="left">
-    <section class="panel" id="space-panel">
-      <div class="p-head"><span class="dot"></span>SPACE WEATHER</div>
+    <section class="panel" id="godseye-panel">
+      <div class="p-head"><span class="dot"></span>LIVE GLOBAL FEEDS</div>
       <div class="p-body">
-        <div id="kp-chart"></div>
-        <div id="kp-meta"></div>
-      </div>
-    </section>
-    <section class="panel" id="market-panel">
-      <div class="p-head"><span class="dot"></span>MARKETS</div>
-      <div class="p-body"><div id="market-rows"></div></div>
-    </section>
-    <section class="panel" id="climate-panel">
-      <div class="p-head"><span class="dot"></span>CLIMATE · DELHI</div>
-      <div class="p-body">
-        <div id="climate-grid"></div>
+        <div id="ge-counts">
+          <div class="ge-row"><span class="ge-ic">✈</span><span class="ge-nm">Live Flights</span><b id="c-flights">0</b></div>
+          <div class="ge-row"><span class="ge-ic">🎖</span><span class="ge-nm">Military Flights</span><b id="c-mil">0</b></div>
+          <div class="ge-row"><span class="ge-ic">🌐</span><span class="ge-nm">Earthquakes 24h</span><b id="c-quakes">0</b></div>
+          <div class="ge-row"><span class="ge-ic">🛰</span><span class="ge-nm">Starlink Sats</span><b id="c-sats">0</b></div>
+          <div class="ge-row"><span class="ge-ic">🚀</span><span class="ge-nm">ISS</span><b id="c-iss" class="ok-g">TRACKING</b></div>
+          <div class="ge-row"><span class="ge-ic">📊</span><span class="ge-nm">Kp Storm</span><b id="c-kp">--</b></div>
+        </div>
+        <div id="ge-layer-btns">
+          <button class="lbtn on" data-layer="flights">FLIGHTS</button>
+          <button class="lbtn on" data-layer="sats">SATS</button>
+          <button class="lbtn on" data-layer="quakes">QUAKES</button>
+          <button class="lbtn on" data-layer="iss">ISS</button>
+        </div>
+        <div id="ge-extra">
+          <div id="markets-mini"></div>
+        </div>
       </div>
     </section>
   </aside>
 
-  <!-- CENTER: map -->
+  <!-- CENTER: the globe -->
   <main id="center" class="panel">
-    <div class="p-head"><span class="dot"></span>GLOBAL OPERATIONS MAP
+    <div class="p-head"><span class="dot"></span>ORBITAL VIEW
       <span class="spacer"></span>
-      <span class="map-toggle" id="toggle-quakes" title="toggle earthquakes">QUAKES</span>
-      <span class="map-toggle" id="toggle-iss" title="toggle ISS">ISS</span>
-      <span class="map-toggle" id="toggle-choke" title="toggle chokepoints">CHOKEPOINTS</span>
+      <button class="lbtn" id="btn-locate" title="Fly to my scan center">◎ LOCATE ME</button>
+      <button class="lbtn on" id="btn-2d" title="Switch flat map / 3D globe">GLOBE/MAP</button>
     </div>
-    <div class="p-body" style="padding:0">
-      <div id="map"></div>
+    <div class="p-body" style="padding:0;position:relative">
+      <div id="globe"></div>
+      <div id="map" style="display:none"></div>
       <div id="map-hud">
-        <div class="tl">M2.5+ · 24H<br><b id="quake-count">0</b> EVENTS</div>
-        <div class="bl" id="iss-hud">ISS: TRACKING…</div>
+        <div class="tl">SCANNING · <b id="hud-mode">3D GLOBE</b><br><span id="hud-coords">38.42N 79.46E</span></div>
+        <div class="bl" id="iss-hud">ISS: SYNC…</div>
       </div>
     </div>
   </main>
 
-  <!-- RIGHT: intel -->
+  <!-- RIGHT: conversation (natural chat, no asterisks) -->
   <aside id="right">
-    <section class="panel" id="intel-panel">
-      <div class="p-head"><span class="dot amber"></span>INTELLIGENCE FEED
-        <div class="tabs" id="intel-tabs">
-          <button class="tab active" data-tab="world">WORLD</button>
-          <button class="tab" data-tab="tech">TECH</button>
-          <button class="tab" data-tab="wiki">EVENTS</button>
+    <section class="panel" id="chat-panel">
+      <div class="p-head"><span class="dot"></span>ADA — DIRECT LINE
+        <span class="spacer"></span>
+        <span class="chip" style="padding:2px 6px;font-size:8px"><span class="led ok"></span>ANY LANGUAGE</span>
+      </div>
+      <div class="p-body chat-body">
+        <div id="chat-log">
+          <div class="msg ada">Nam Saket! Main ADA hoon. Jo bhi poochhna hai poochho — main seedha jawab dungi, bilkul insaan ki tarah baat karte hue. Koi bhi bhasha chalegi. Aur globe ki taraf dekho — flights, satellites, sab LIVE chal rahe hain.</div>
         </div>
-      </div>
-      <div class="p-body">
-        <div id="intel-list" class="feed-list"></div>
-      </div>
-    </section>
-    <section class="panel" id="comms-panel">
-      <div class="p-head"><span class="dot"></span>COMMS / ADA VOICE</div>
-      <div class="p-body">
+        <div class="chat-input-row">
+          <input id="chat-in" type="text" placeholder="kuch bhi poochho… (Enter bhejo)" autocomplete="off">
+          <button id="chat-send">➤</button>
+        </div>
+        <div class="comms-row">🎤 <button id="voice-btn" class="vsmall">▸ HOLD TO TALK (V)</button> <span id="comms-mode">STANDBY</span><span style="margin-left:auto" id="tts-state">TTS ON</span></div>
         <canvas id="wave"></canvas>
-        <div class="comms-row">CHANNEL: <b id="comms-mode">STANDBY</b><span style="margin-left:auto" id="tts-state">TTS ON</span></div>
-        <button id="voice-btn">▸ Voice Loop (any language)</button>
-        <button id="brief-btn" class="secondary">▶ Morning Briefing</button>
       </div>
     </section>
   </aside>
-
-  <!-- BOTTOM: terminal -->
-  <section id="term" class="panel">
-    <div class="p-head"><span class="dot"></span>SYSTEM TERMINAL
-      <span class="spacer"></span>
-      <span class="kbd-hint"><b>V</b> voice loop · <b>B</b> briefing · <b>S</b> scan · <b>R</b> refresh · ask anything in any language</span>
-    </div>
-    <div class="p-body">
-      <div id="term-out"></div>
-      <div id="cmdrow">
-        <span class="ps1">ada@world:~$</span>
-        <input id="cmd" type="text" placeholder="try: briefing, quakes, news, bitcoin, launches, weather delhi, help" autocomplete="off" spellcheck="false">
-      </div>
-    </div>
-  </section>
 
 </div>
 
@@ -130,6 +117,7 @@
 <script src="js/ai.js"></script>
 <script src="js/tools.js"></script>
 <script src="js/agent.js"></script>
+<script src="js/gods-eye.js"></script>
 <script src="js/brain.js"></script>
 <script src="js/app.js"></script>
 </body>

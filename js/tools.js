@@ -248,15 +248,19 @@ const TOOLS = (() => {
   /* ---------- DASHBOARD CONTROL (JARVIS actions) ---------- */
 
   R.map_go = {
-    desc: "Move/zoom the ops map to a place. Params: place (e.g. 'Tokyo'), zoom (number?, 1-8, default 5).",
+    desc: "Move/zoom the view to a place (flies the 3D globe or map). Params: place (e.g. 'Tokyo'), zoom (number?, 1-8, default 5).",
     params: { place: "string", zoom: "number?" },
     async run(a) {
       const g = await j("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(a.place) + "&count=1");
       if (!g.results || !g.results.length) return { error: "place not found" };
       const r = g.results[0];
+      if (typeof GODSEYE !== "undefined" && GODSEYE.ready && GODSEYE.ready()) {
+        GODSEYE.flyTo(r.latitude, r.longitude, (9 - (a.zoom || 5)) / 4 || 1.5);
+        return { moved: true, place: r.name + ", " + (r.country || ""), view: "3D globe" };
+      }
       if (window.__adaMap && window.__adaMap.map) {
         window.__adaMap.map.flyTo([r.latitude, r.longitude], a.zoom || 5, { duration: 1.5 });
-        return { moved: true, place: r.name + ", " + (r.country || "") };
+        return { moved: true, place: r.name + ", " + (r.country || ""), view: "flat map" };
       }
       return { error: "map offline" };
     }
@@ -284,11 +288,39 @@ const TOOLS = (() => {
   };
 
   R.briefing = {
-    desc: "Compile + speak the full situation briefing (all live feeds). No params.",
+    desc: "Compile + speak the full natural-language situation briefing (all live feeds, Hinglish style). No params.",
     params: {},
     async run() {
       const t = await morningBriefing(true);
       return { spoken: true, text: t };
+    }
+  };
+
+  /* ---------- GOD'S EYE live layers ---------- */
+
+  R.flights = {
+    desc: "Live aircraft radar near the scan center (ADS-B): callsign, type, altitude, speed, heading. Params: limit (number?, default 10).",
+    params: { limit: "number?" },
+    async run(a) {
+      let ac = [];
+      try {
+        if (typeof GODSEYE !== "undefined" && GODSEYE.state) ac = GODSEYE.state.flights;
+      } catch (e) { }
+      if (!ac.length) return { error: "flight radar not loaded yet — ask again in a minute" };
+      const n = a.limit || 10;
+      return { count: ac.length, flights: ac.slice(0, n).map(f => ({ callsign: f.cs, type: f.type, alt_ft: Math.round(f.alt), speed_kt: Math.round(f.spd), heading: Math.round(f.track), military: !!f.mil })) };
+    }
+  };
+
+  R.satellites = {
+    desc: "Live Starlink satellite count being tracked on the globe + sample positions. No params.",
+    params: {},
+    async run() {
+      try {
+        if (typeof GODSEYE === "undefined" || !GODSEYE.state) return { error: "sat layer not loaded" };
+        const st = GODSEYE.state;
+        return { tracked: st.sats.length, total_tles: st.satrecs.length, sample: st.sats.slice(0, 5).map(s => ({ name: s.name, alt_km: Math.round(s.alt) })) };
+      } catch (e) { return { error: "sat data unavailable" }; }
     }
   };
 

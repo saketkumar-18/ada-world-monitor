@@ -37,10 +37,11 @@ ${toolsText}`;
     // log helper no-ops if ui missing
     const L = ui ? ui.log : () => { };
     const onStep = ui ? ui.onStep : () => { };
+    const sysText = (ui && ui.sysPromptOverride) ? ui.sysPromptOverride : sysPrompt;
 
     const toolsText = TOOLS.manifest();
     const messages = [
-      { role: "system", content: sysPrompt(lang, toolsText) },
+      { role: "system", content: sysText(lang, toolsText) },
       { role: "system", content: "[LIVE DATA NOW]\n" + AI.liveBlock(S) },
       { role: "user", content: userText },
     ];
