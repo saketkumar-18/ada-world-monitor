@@ -98,6 +98,9 @@ function initMap() {
     layerOn.choke && layerChoke.addTo(map);
     layerOn.quakes && layerQuakes.addTo(map);
     layerOn.iss && layerISS.addTo(map);
+
+    // expose for the AGENT tools (JARVIS control)
+    window.__adaMap = { map };
   } catch (e) {
     map = null;
     mapFail("init failed: " + e.message);
@@ -243,6 +246,14 @@ function bindToggles() {
     S.layerOn.quakes ? layerQuakes.addTo(map) : map.removeLayer(layerQuakes);
     S.layerOn.iss ? layerISS.addTo(map) : map.removeLayer(layerISS);
     S.layerOn.choke ? layerChoke.addTo(map) : map.removeLayer(layerChoke);
+  };
+  // expose for AGENT tool map_layer
+  window.__adaLayers = (key, on) => {
+    S.layerOn[key] = on;
+    const sel = { quakes: "#toggle-quakes", iss: "#toggle-iss", choke: "#toggle-choke" }[key];
+    if (sel) $(sel).classList.toggle("on", on);
+    apply();
+    return { layer: key, on };
   };
   [["#toggle-quakes", "quakes"], ["#toggle-iss", "iss"], ["#toggle-choke", "choke"]].forEach(([sel, key]) => {
     const el = $(sel);

@@ -1,27 +1,38 @@
 # ADA World Monitor
 
-> Real-time global intelligence dashboard **with a full AI brain** — ask anything, in any language, by voice or text. Live data (earthquakes, space weather, markets, news, ISS, launches, FX, weather) is injected into every AI answer.
-> **Free. Zero API keys. Zero backend. Zero build.**
+> **JARVIS-class AI agent in your browser.** ADA doesn't just answer — she *does things*: 22 executable tools, a multi-step agent loop, any-language voice, and a live global intelligence dashboard. Free. Zero keys. Zero backend.
 
 **Live:** https://saketkumar-18.github.io/ada-world-monitor/
 
-## The AI brain
+## What makes ADA an agent (not a chatbot)
 
-ADA answers **any question** — science, history, math, code, current events, live world data — in **any language you speak**.
+When you ask, the **agent loop** engages: ADA reads your task → picks tools → executes them → observes results → chains more tools (up to 6 steps) → delivers the final spoken answer. You watch every tool fire in the terminal.
 
-| Layer | What it does |
+### The 22 tools she can execute
+| Category | Tools |
 |---|---|
-| **Puter.js LLM** (GPT / Claude / Gemini, free, no API keys) | General knowledge, reasoning, any-language replies |
-| **Live-data injection** | Every question carries a snapshot of all 8 live feeds + FX, so live questions get exact current numbers |
-| **Wikipedia knowledge** (18 languages) | Entity facts pulled in real time as extra context |
-| **Language auto-detect** | Detects Hindi/English/Japanese/Chinese/Korean/Arabic/Russian/Thai (+ Devanagari, Hinglish) — recognition, reply, and voice all follow the language you spoke |
-| **Local fast-path** | Instant spoken answers for `briefing`, `quakes`, `bitcoin`, `iss`, `weather <city>`, `fx usd to inr` — no LLM round-trip |
-| **Model fallback** | If the primary model fails, ADA auto-switches to the fallback model |
+| 🌐 Web | `web_search` (live DuckDuckGo) · `read_url` (reads any article) · `open_url` (opens sites for you) |
+| 📚 Knowledge | `wiki` (18 languages) · `time_now` (any timezone) |
+| 🌍 Live world | `quakes` (USGS) · `weather` · `air_quality` · `fx` (ECB rates) · `crypto` · `space_weather` (Kp) · `iss` · `launches` · `news` (BBC world/tech/business/science) |
+| 🧮 Compute | `calc` (math) · `convert` (units/temperature) |
+| 🧠 Personal | `remember`/`recall` (persistent memory) · `todo` (task manager) · `alarm` (spoken reminders) |
+| 🎛️ Dashboard | `map_go` (fly the map anywhere) · `map_layer` (toggle layers) · `briefing` · `refresh_feeds` |
 
-### Voice loop
-Press **V** — ADA listens continuously, answers, and reopens the mic automatically. Speak Hindi, Hinglish, English — anything. Say "chup" or press **V** to stop.
+### Example tasks she handles end-to-end
+- *"research karo solar storm ka latest status, aur batao kya risk hai"* → `space_weather` + `web_search` + `read_url` → Hinglish spoken synthesis
+- *"Tokyo le chalo map pe"* → map flies to Tokyo
+- *"5 baje remind karoyo call karna hai"* → spoken alarm
+- *"yad rakhna mujhe elaichi chai pasand hai"* → saved to memory forever
+- *" strongest earthquake today aur uske baare me detail do"* → `quakes` → `web_search` → answer with live numbers
+- *"mera todo list banao: gym, revision, deploy"* → added
 
-> Note: the free AI (Puter.js) shows a **one-time sign-in popup** (email/Google — free account) on your first AI question. That's Puter's free-tier model: no keys for you, they meter per-user. Local commands, all feeds, map, and briefing work without it.
+### Any language
+Speak Hindi, Hinglish, English, Japanese, Chinese, Korean, Arabic, Russian… — script + keyword detection sets recognition, reply, **and voice** to your language automatically.
+
+### Local fast-path
+`briefing` / `quakes` / `bitcoin` / `iss` / `news` / `weather <city>` / `fx usd to inr` answer instantly, no LLM needed.
+
+> The free AI (Puter.js — GPT-5.4-nano primary, Claude Sonnet fallback) shows a **one-time sign-in popup** (email/Google, free) on your first AI question. That's their free-tier model: no API keys for you. Feeds, map, briefing, and local commands work without it.
 
 ## Live data feeds (all free, CORS-verified)
 
@@ -54,8 +65,9 @@ Dark Leaflet ops map: quakes sized by magnitude, ISS live icon + dashed orbit tr
 ## Run / Test
 
 ```bash
-npx serve .          # run
-node tests/run.js    # 36 live-API tests + syntax + language-detect checks
+npx serve .               # run
+node tests/run.js         # 36 feed + syntax tests
+node tests/tools.test.js  # 31 tool + agent-loop tests
 ```
 
 ## Stack

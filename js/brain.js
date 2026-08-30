@@ -91,42 +91,24 @@ function localCommand(q) {
   return null;
 }
 
-/* ---- the AI brain answer ---- */
+/* ---- the AI brain answer → now the AGENT loop ---- */
 async function aiAnswer(userText, lang) {
   convo.busy = true;
   $("#comms-mode").textContent = "THINKING";
-  log("info", "[AI]", "querying neural core…");
+  log("info", "[AI]", "agent engaged · tools armed");
   try {
     if (!AI.ready()) throw new Error("AI core offline — js.puter.com not loaded");
-
-    // enrich: pull Wikipedia knowledge for entity-style questions
-    let wikiCtx = "";
-    try {
-      const w = await AI.wiki(userText.slice(0, 80), (lang || "en-IN").split("-")[0]);
-      if (w && w.extract) wikiCtx = `[WIKIPEDIA ${w.lang}] ${w.title}: ${w.extract.slice(0, 500)}`;
-    } catch (_) { }
-
-    const msgs = [
-      { role: "system", content: AI.sysPrompt(lang) },
-      { role: "system", content: "[LIVE DATA]\n" + AI.liveBlock(S) + (wikiCtx ? "\n[WIKI CONTEXT]\n" + wikiCtx : "") },
-      ...convo.history.slice(-6),
-      { role: "user", content: userText },
-    ];
-
-    let out;
-    try { out = await AI.chat(msgs, {}); }
-    catch (e1) {
-      log("warn", "[AI]", "primary model failed (" + e1.message + ") — switching model");
-      out = await AI.chat(msgs, { model: AI.LM_FALLBACK });
-    }
-
+    const out = await AGENT.run(userText, lang, {
+      log,
+      onStep: (n, tool) => { $("#comms-mode").textContent = "TOOL: " + tool.toUpperCase(); },
+    });
     convo.history.push({ role: "user", content: userText }, { role: "assistant", content: out });
     if (convo.history.length > 12) convo.history = convo.history.slice(-12);
     respond(out, true);
-    log("ok", "[AI]", "answer delivered (" + out.length + " chars)");
+    log("ok", "[AI]", "task complete (" + out.length + " chars)");
   } catch (e) {
     log("err", "[AI]", e.message);
-    respond("My AI core is offline. Free AI needs a one-time Puter sign-in — click any chat or ask again to trigger it. Meanwhile, local commands work.", false);
+    respond("AI core offline. Free AI needs a one-time Puter sign-in (popup on first AI question). Local commands, feeds and briefing still work.", false);
   } finally {
     convo.busy = false;
     $("#comms-mode").textContent = listening ? "LISTENING" : "STANDBY";
