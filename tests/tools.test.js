@@ -51,6 +51,17 @@ const t = (n, c, e) => { if (c) { p++; console.log("PASS", n); } else { f++; con
   const badw = await T.call("weather", { city: "xyzzynotacity" }); t("weather bad city error", badw.error === "city not found");
   const ml = await T.call("map_layer", { layer: "quakes", on: false }); t("map_layer graceful", ml.error === "map offline");
 
+  // OS bridge tools (requires ada_bridge.py running on localhost:8742)
+  const os = await T.call("os_status", {});
+  if (!os.error) {
+    t("bridge os_status", os.bridge === "connected", JSON.stringify(os).slice(0, 80));
+    const si = await T.call("os_run", { action: "sys_info" }); t("bridge sys_info", si.disk_free_gb > 0);
+    const bad2 = await T.call("os_run", { action: "shutdown" }); t("bridge shutdown guarded", bad2.error && bad2.error.includes("i_am_sure"));
+    const qt = await T.call("queue_task", { task: "test task from tools.test.js — ignore, reply 'bridge ok'" }); t("bridge queue_task", qt.queued === true, JSON.stringify(qt));
+  } else {
+    t("bridge offline graceful (skip live OS tests)", os.error === "bridge_offline", JSON.stringify(os).slice(0, 80));
+  }
+
   // agent loop test: fake AI returns a tool-call JSON first, then a final answer
   const fakeAI = {
     ready: () => true,

@@ -558,6 +558,23 @@ initMap();
 bindToggles();
 sizeWave();
 window.addEventListener("error", (e) => { try { log("err", "[ERR]", String(e.message || e.type)); } catch (_) { } });
+// bridge status poll (OS runtime)
+async function pollBridge() {
+  try {
+    const r = await fetch("http://127.0.0.1:8742/status", { signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined });
+    const j = await r.json();
+    if (j.error || !j.alive) throw new Error("bad status");
+    $("#bridge-label").textContent = "OS: ARMED";
+    $("#bridge-chip").querySelector(".led").style.background = "var(--green)";
+    $("#bridge-chip").querySelector(".led").style.boxShadow = "0 0 6px var(--green)";
+  } catch (e) {
+    $("#bridge-label").textContent = "OS: OFFLINE";
+    $("#bridge-chip").querySelector(".led").style.background = "var(--amber)";
+    $("#bridge-chip").querySelector(".led").style.boxShadow = "0 0 6px var(--amber)";
+  }
+}
+pollBridge();
+setInterval(pollBridge, 30000);
 runBoot(() => {
   log("ok", "[SYS]", "ADA World Monitor online · 8 feeds armed");
   log("sys", "[SYS]", "HELP for commands · B for briefing · V for voice");

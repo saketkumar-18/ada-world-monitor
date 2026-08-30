@@ -307,6 +307,57 @@ const TOOLS = (() => {
     }
   };
 
+  /* ---------- OS RUNTIME (ADA Local Bridge, localhost:8742) ---------- */
+
+  const BRIDGE = "http://127.0.0.1:8742";
+  async function bridge(route, body) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 6000);
+    try {
+      const r = await fetch(BRIDGE + route, {
+        method: body ? "POST" : "GET",
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined,
+        signal: c.signal,
+      });
+      return await r.json();
+    } catch (e) {
+      return { error: "bridge_offline", hint: "start_ada_bridge.bat on the laptop" };
+    } finally { clearTimeout(t); }
+  }
+
+  R.os_status = {
+    desc: "Check if the OS runtime (ADA Local Bridge on the operator's laptop) is connected. No params. Call this first before os_run/queue_task.",
+    params: {},
+    async run() {
+      const r = await bridge("/status");
+      if (r.error) return { ...r, advice: "Tell the operator: run start_ada_bridge.bat in %LOCALAPPDATA%\\hermes\\scripts to give me OS-level hands." };
+      return { bridge: "connected", uptime_s: r.uptime_s, queue: r.queue };
+    }
+  };
+
+  R.os_run = {
+    desc: "INSTANT OS actions on the operator's laptop (via bridge). Params: action ('open_url'|'open_app'|'notify'|'lock'|'shutdown'|'cancel_shutdown'|'sys_info'), args (object: url/app/message/i_am_sure).",
+    params: { action: "string", args: "object?" },
+    async run(a) {
+      const r = await bridge("/run", { action: a.action, args: a.args || {} });
+      log("info", "[OS]", a.action + " → " + JSON.stringify(r).slice(0, 100));
+      return r;
+    }
+  };
+
+  R.queue_task = {
+    desc: "Queue a task for Saket Agent (autonomous Hermes worker, 24/7). It executes within ~15 min with FULL capabilities (files, code, deploys, research) and reports to Telegram. Use for any job too big to finish here. Params: task (string, self-contained instructions).",
+    params: { task: "string" },
+    async run(a) {
+      const t = String(a.task || "").trim();
+      if (t.length < 3) return { error: "task too short" };
+      const r = await bridge("/queue", { task: t });
+      if (!r.error) log("ok", "[QUEUE]", "task " + (r.id || "") + " dispatched to Saket Agent");
+      return r;
+    }
+  };
+
   /* ---------- registry helpers ---------- */
   function names() { return Object.keys(R); }
   function schemas() {
