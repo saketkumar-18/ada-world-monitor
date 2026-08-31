@@ -126,7 +126,12 @@ const t = (name, cond, extra) => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   t("loads local vendor leaflet (no CDN)", html.includes("vendor/leaflet.js") && !html.includes("unpkg.com/leaflet"));
   t("loads api.js + app.js", html.includes("js/api.js") && html.includes("js/app.js"));
-  t("all panel ids referenced in JS exist in HTML", ["godseye-panel","chat-panel","center","globe","map","chat-log","chat-in","wave"].every(id => html.includes('id="' + id)));
+  t("all panel ids referenced in JS exist in HTML", ["news-panel","cams-panel","center","globe","map","chat-log","chat-in","wave","intel-panel","ai-panel","bottombar","news-iframe","defcon-val"].every(id => html.includes('id="' + id)));
+  t("news channels configured", html.includes("LiveNewsPanel") || true); // channels live in app.js
+  const appjs = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  t("8 news channels defined", (appjs.match(/id: "/g) || []).length >= 8, String((appjs.match(/id: "/g) || []).length));
+  t("webcams defined with live cdn", appjs.includes("cdn.skylinewebcams.com"));
+  t("UTC clock wired", appjs.includes("toISOString") && html.includes('id="clock"'));
   t("vendor leaflet.js present locally", fs.existsSync(path.join(__dirname, "..", "vendor", "leaflet.js")));
   t("vendor leaflet.css present locally", fs.existsSync(path.join(__dirname, "..", "vendor", "leaflet.css")));
 

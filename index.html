@@ -3,127 +3,167 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="ADA God's Eye — 3D live globe with flights, Starlink satellites, quakes and a talking AI that answers like a human.">
-<meta name="theme-color" content="#050810">
-<title>ADA — God's Eye</title>
+<meta name="description" content="ADA World Monitor v3 — real-time global intelligence dashboard: dark ops map, live news streams, flight radar, satellites, conflict monitoring, AI insights.">
+<meta name="theme-color" content="#0a0e14">
+<title>ADA — World Monitor</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='10' fill='none' stroke='%2335e0ff' stroke-width='3'/><circle cx='16' cy='16' r='3' fill='%2335e0ff'/></svg>">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/globe.gl.min.js"></script>
 <script src="vendor/satellite.min.js"></script>
 <link rel="stylesheet" href="css/main.css">
-<script src="https://js.puter.com/v2/"></script>
 </head>
 <body>
 
 <div id="boot"><div id="boot-inner">
-  <div class="b-title">A D A · GOD'S EYE</div>
+  <div class="b-title">A D A · WORLD MONITOR</div>
   <div id="boot-lines"></div>
 </div></div>
 
+<!-- ============ TOP BAR (worldmonitor-style) ============ -->
 <header id="topbar">
-  <div id="logo">
+  <div id="brand">
     <svg viewBox="0 0 32 32" fill="none">
-      <circle cx="16" cy="16" r="13" stroke="#35e0ff" stroke-width="1" opacity=".4"/>
-      <circle cx="16" cy="16" r="9" stroke="#35e0ff" stroke-width="1.6"/>
-      <circle cx="16" cy="16" r="2.6" fill="#35e0ff"/>
-      <path d="M16 3v5M16 24v5M3 16h5M24 16h5" stroke="#35e0ff" stroke-width="1" opacity=".6"/>
+      <circle cx="16" cy="16" r="13" stroke="#35e0ff" stroke-width="1.4" opacity=".5"/>
+      <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#35e0ff" stroke-width="1.2" opacity=".7"/>
+      <circle cx="16" cy="16" r="5.5" stroke="#35e0ff" stroke-width="1.4"/>
+      <circle cx="16" cy="16" r="2" fill="#35e0ff"/>
     </svg>
     <div>
-      <div class="name">ADA <span class="name-2">GOD'S EYE</span></div>
-      <div class="sub">NO PLACE LEFT HIDDEN · REAL-TIME GLOBAL AWARENESS</div>
+      <div class="brand-line"><span class="brand-name">WORLD</span> MONITOR <span class="ver">v3.0 · ADA</span></div>
+      <div class="brand-sub">GLOBAL INTELLIGENCE · SITUATIONAL AWARENESS</div>
     </div>
   </div>
-  <div id="top-status">
-    <span class="chip"><span class="led ok"></span><span id="live-count">0 FEEDS</span></span>
-    <span class="chip" id="bridge-chip" title="OS runtime"><span class="led" style="background:var(--amber);box-shadow:0 0 6px var(--amber)"></span><span id="bridge-label">OS: OFFLINE</span></span>
-    <span class="chip" id="loc-chip" title="Current scan center"><span class="led" style="background:var(--cyan);box-shadow:0 0 6px var(--cyan)"></span><span id="loc-label">28.6N 77.2E · DELHI</span></span>
+  <div class="top-status">
+    <span class="chip live-chip"><span class="led ok"></span>LIVE</span>
+    <span class="chip" id="os-chip" title="OS runtime via bridge"><span class="led warn" id="os-led"></span><span id="os-label">OS OFFLINE</span></span>
+    <span class="chip defcon-chip" id="defcon-chip" title="Global threat posture">DEFCON <b id="defcon-val">5</b></span>
   </div>
   <div id="clockbox">
     <div id="clock">--:--:--</div>
-    <div id="dateline">SYNCING…</div>
+    <div id="dateline">— UTC —</div>
   </div>
 </header>
 
+<!-- ============ MAIN GRID ============ -->
 <div id="app">
 
-  <!-- LEFT: live counts (God's Eye panel from the video) -->
+  <!-- LEFT COLUMN: live news + webcams -->
   <aside id="left">
-    <section class="panel" id="godseye-panel">
-      <div class="p-head"><span class="dot"></span>LIVE GLOBAL FEEDS</div>
+    <section class="panel" id="news-panel">
+      <div class="p-head"><span class="dot red"></span>LIVE NEWS
+        <span class="spacer"></span>
+        <span class="mini" id="news-status">● STREAMING</span>
+      </div>
+      <div class="p-body news-body">
+        <div id="news-tabs"></div>
+        <div id="news-video"><iframe id="news-iframe" title="live news" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen frameborder="0"></iframe></div>
+        <div id="news-headlines" class="feed-list"></div>
+      </div>
+    </section>
+    <section class="panel" id="cams-panel">
+      <div class="p-head"><span class="dot"></span>LIVE WEBCAMS</div>
       <div class="p-body">
-        <div id="ge-counts">
-          <div class="ge-row"><span class="ge-ic">✈</span><span class="ge-nm">Live Flights</span><b id="c-flights">0</b></div>
-          <div class="ge-row"><span class="ge-ic">🎖</span><span class="ge-nm">Military Flights</span><b id="c-mil">0</b></div>
-          <div class="ge-row"><span class="ge-ic">🌐</span><span class="ge-nm">Earthquakes 24h</span><b id="c-quakes">0</b></div>
-          <div class="ge-row"><span class="ge-ic">🛰</span><span class="ge-nm">Starlink Sats</span><b id="c-sats">0</b></div>
-          <div class="ge-row"><span class="ge-ic">🚀</span><span class="ge-nm">ISS</span><b id="c-iss" class="ok-g">TRACKING</b></div>
-          <div class="ge-row"><span class="ge-ic">📊</span><span class="ge-nm">Kp Storm</span><b id="c-kp">--</b></div>
-        </div>
-        <div id="ge-layer-btns">
-          <button class="lbtn on" data-layer="flights">FLIGHTS</button>
-          <button class="lbtn on" data-layer="sats">SATS</button>
-          <button class="lbtn on" data-layer="quakes">QUAKES</button>
-          <button class="lbtn on" data-layer="iss">ISS</button>
-        </div>
-        <div id="ge-extra">
-          <div id="markets-mini"></div>
-        </div>
+        <div id="cams-row"></div>
       </div>
     </section>
   </aside>
 
-  <!-- CENTER: the globe -->
+  <!-- CENTER: THE MAP -->
   <main id="center" class="panel">
-    <div class="p-head"><span class="dot"></span>ORBITAL VIEW
+    <div class="p-head"><span class="dot"></span>GLOBAL SITUATION MAP
       <span class="spacer"></span>
-      <button class="lbtn" id="btn-locate" title="Fly to my scan center">◎ LOCATE ME</button>
-      <button class="lbtn on" id="btn-2d" title="Switch flat map / 3D globe">GLOBE/MAP</button>
+      <button class="tbtn on" id="btn-globe" title="3D globe view">GLOBE</button>
+      <button class="tbtn" id="btn-flat" title="2D flat view">2D</button>
+      <span class="mini" id="scan-region">GLOBAL</span>
     </div>
-    <div class="p-body" style="padding:0;position:relative">
+    <div class="p-body map-body">
       <div id="globe"></div>
       <div id="map" style="display:none"></div>
+      <!-- UTC timestamp (worldmonitor style, top-center) -->
+      <div id="map-stamp">—</div>
+      <!-- zoom cluster -->
       <div id="zoom-controls">
-        <button class="zbtn" id="zoom-in" title="Zoom in">+</button>
-        <button class="zbtn" id="zoom-out" title="Zoom out">−</button>
-        <button class="zbtn" id="zoom-rot" title="Auto-rotate on/off" style="font-size:11px">⟳</button>
+        <button class="zbtn" id="zoom-in">+</button>
+        <button class="zbtn" id="zoom-out">−</button>
+        <button class="zbtn" id="zoom-home" title="Home view">⌂</button>
+        <button class="zbtn" id="zoom-rot" title="Auto-rotate">⟳</button>
       </div>
-      <div id="map-hud">
-        <div class="tl">SCANNING · <b id="hud-mode">3D GLOBE</b><br><span id="hud-coords"></span></div>
-        <div class="bl" id="iss-hud">ISS: SYNC…</div>
+      <!-- layers legend (worldmonitor style, bottom-center) -->
+      <div id="map-legend">
+        <span class="lg-title">LEGEND</span>
+        <span class="lg"><i class="d red"></i>High Alert</span>
+        <span class="lg"><i class="d orange"></i>Elevated</span>
+        <span class="lg"><i class="d blue"></i>Monitoring</span>
+        <span class="lg"><i class="d cyan"></i>Flights</span>
+        <span class="lg"><i class="d white"></i>ISS/Sats</span>
       </div>
+      <div id="iss-hud">ISS: SYNC…</div>
     </div>
   </main>
 
-  <!-- RIGHT: conversation (natural chat, no asterisks) -->
+  <!-- RIGHT COLUMN: feeds + AI -->
   <aside id="right">
-    <section class="panel" id="chat-panel">
-      <div class="p-head"><span class="dot"></span>ADA — DIRECT LINE
-        <span class="spacer"></span>
-        <span class="chip" style="padding:2px 6px;font-size:8px"><span class="led ok"></span>ANY LANGUAGE</span>
+    <section class="panel" id="intel-panel">
+      <div class="p-head"><span class="dot amber"></span>INTEL FEEDS</div>
+      <div class="p-body">
+        <div id="intel-counts" class="counts-grid">
+          <div class="ct"><b id="c-quakes">0</b><span>QUAKES 24H</span></div>
+          <div class="ct"><b id="c-flights">0</b><span>FLIGHTS</span></div>
+          <div class="ct"><b id="c-mil">0</b><span>MILITARY</span></div>
+          <div class="ct"><b id="c-sats">0</b><span>STARLINK</span></div>
+          <div class="ct"><b id="c-kp">--</b><span>KP INDEX</span></div>
+          <div class="ct"><b id="c-m5">0</b><span>M5+ QUAKE</span></div>
+        </div>
+        <div id="layers-btns">
+          <button class="lbtn on" data-layer="flights">FLIGHTS</button>
+          <button class="lbtn on" data-layer="sats">SATS</button>
+          <button class="lbtn on" data-layer="quakes">QUAKES</button>
+          <button class="lbtn on" data-layer="iss">ISS</button>
+          <button class="lbtn on" data-layer="conflict">CONFLICT</button>
+        </div>
+        <div id="ticker" class="ticker"><div class="ticker-inner" id="ticker-inner"></div></div>
       </div>
+    </section>
+    <section class="panel" id="ai-panel">
+      <div class="p-head"><span class="dot"></span>ADA — AI CO-PILOT<span class="spacer"></span><span class="mini" id="comms-mode">STANDBY</span></div>
       <div class="p-body chat-body">
         <div id="chat-log">
-          <div class="msg ada">Nam Saket! Main ADA hoon — teri God's Eye. Jo poochhna hai poochh le, main seedha jawab dungi bilkul insaan ki tarah. Koi bhi bhasha chalegi. Globe pe flights, satellites, sab LIVE chal rahe hain.</div>
+          <div class="msg ada">Nam Saket. Main ADA hoon — is dashboard ki AI co-pilot. Kuch bhi poochho: live data, analysis, bhasha koi bhi. Globe pe sab real-time chal raha hai.</div>
         </div>
         <div id="chat-chips">
-          <button class="qchip">aaj ka briefing do</button>
-          <button class="qchip">abhi flights kitni hain</button>
-          <button class="qchip">strongest earthquake today</button>
-          <button class="qchip">Tokyo dikhao</button>
-          <button class="qchip">starlink satellites batao</button>
+          <button class="qchip">situation briefing do</button>
+          <button class="qchip">flights kitni hain abhi</button>
+          <button class="qchip">sabse tez earthquake aaj</button>
+          <button class="qchip">Tehran dikhao</button>
           <button class="qchip">dollar ka rate</button>
-          <button class="qchip">mausam Mumbai ka</button>
+          <button class="qchip">mausam Delhi ka</button>
         </div>
         <div class="chat-input-row">
           <input id="chat-in" type="text" placeholder="kuch bhi poochho… (Enter)" autocomplete="off">
           <button id="chat-send">➤</button>
         </div>
-        <div class="comms-row">🎤 <button id="voice-btn" class="vsmall">▸ BOLNA SHURU KARO (V)</button> <span id="comms-mode">STANDBY</span><span style="margin-left:auto" id="tts-state">TTS ON</span></div>
+        <div class="comms-row">
+          <button id="voice-btn" class="vsmall">▸ VOICE ON (V)</button>
+          <span class="mini" id="tts-state">TTS ON</span>
+        </div>
         <canvas id="wave"></canvas>
       </div>
     </section>
   </aside>
+
+  <!-- BOTTOM: ticker bar -->
+  <footer id="bottombar">
+    <div id="bt-stats">
+      <span>UTC <b id="bt-utc">--:--</b></span>
+      <span>IST <b id="bt-ist">--:--</b></span>
+      <span>BTC <b id="bt-btc">$--</b></span>
+      <span>ETH <b id="bt-eth">$--</b></span>
+      <span>USD/INR <b id="bt-fx">--</b></span>
+      <span>AQI DEL <b id="bt-aqi">--</b></span>
+    </div>
+    <div id="bt-ticker"><div class="ticker-inner" id="bt-ticker-inner"></div></div>
+  </footer>
 
 </div>
 
